@@ -5,7 +5,7 @@
 @theme {
   --font-display: "Poppins", "sans-serif";
   --breakpoint-3xl: 1920px;
-  --color-primary: #1368EC;
+  --color-primary: #18181B;
 }
 
 @layer base {

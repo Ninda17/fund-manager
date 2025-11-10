@@ -139,6 +139,13 @@ const Login = () => {
             error={passwordError}
           />
 
+          <div className="w-full flex mb-4 justify-end">
+            <Link to="/forgot-password" className="text-sm text-primary hover:text-blue-700">
+              Forget Password?
+            </Link>
+          </div>
+
+
           {error && (
             <p className='text-red-500 text-sm mt-2 mb-4'>
               {error}
@@ -148,7 +155,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className='w-full bg-primary text-white uppercase font-semibold py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+            className='w-full bg-primary text-white uppercase font-semibold py-3 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>

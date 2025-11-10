@@ -1,6 +1,8 @@
 const User = require("../models/userModel");
+const OTP = require("../models/otpModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sendOTPEmail } = require("../utils/emailService");
 
 const register = async (req, res) => {
   try {
@@ -247,10 +249,143 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate input
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide your email address",
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return res.status(200).json({
+        success: true,
+        message: "If the email exists, an OTP has been sent",
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Delete any existing OTPs for this email
+    await OTP.deleteMany({ email: user.email });
+
+    // Save OTP to database
+    await OTP.create({
+      email: user.email,
+      otp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
+
+    // Send OTP via email
+    try {
+      await sendOTPEmail(user.email, otp);
+    } catch (emailError) {
+      console.error("Email sending error:", emailError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP email. Please try again later.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "OTP has been sent to your email address",
+    });
+  } catch (error) {
+    console.error("Request password reset error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const verifyOTPAndResetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    // Validate input
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide email, OTP, and new password",
+      });
+    }
+
+    // Validate password length
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long",
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Find OTP
+    const otpRecord = await OTP.findOne({
+      email: user.email,
+      otp,
+      isUsed: false,
+      expiresAt: { $gt: new Date() }, // Not expired
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update user password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Mark OTP as used
+    otpRecord.isUsed = true;
+    await otpRecord.save();
+
+    // Delete all OTPs for this email
+    await OTP.deleteMany({ email: user.email });
+
+    res.status(200).json({
+      success: true,
+      message: "Password has been reset successfully",
+    });
+  } catch (error) {
+    console.error("Verify OTP and reset password error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   getUserProfile,
   updateUserProfile,
+  requestPasswordReset,
+  verifyOTPAndResetPassword,
 };
 

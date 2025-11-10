@@ -20,7 +20,7 @@ const Navbar = () => {
       <div className="flex items-center justify-between">
         {/* Fund Manager Title - Left side */}
         <Link to={dashboardPath} className="text-xl text-black">
-          Fund Manager
+          Fund Tracker
         </Link>
         
         {/* Mobile Menu Button */}
