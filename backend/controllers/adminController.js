@@ -1,8 +1,5 @@
 const User = require("../models/userModel");
 
-// @desc    Get all users
-// @route   GET /api/admin/users
-// @access  Admin only
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
@@ -21,9 +18,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// @desc    Get user by ID
-// @route   GET /api/admin/users/:id
-// @access  Admin only
+
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -58,9 +53,7 @@ const getUserById = async (req, res) => {
   }
 };
 
-// @desc    Delete user
-// @route   DELETE /api/admin/users/:id
-// @access  Admin only
+
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -113,9 +106,6 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// @desc    Update user approval status
-// @route   PUT /api/admin/users/:id/approval
-// @access  Admin only
 const updateUserApproval = async (req, res) => {
   try {
     const { id } = req.params;

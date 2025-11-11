@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { register, login, getUserProfile, updateUserProfile, requestPasswordReset, verifyOTPAndResetPassword } = require("../controllers/authController");
+const { register, login, getUserProfile, updateUserProfile, requestPasswordReset, verifyOTPAndResetPassword, verifyEmail, resendVerificationEmail } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
@@ -36,6 +36,10 @@ router.post("/upload-image", upload.single("image"), (req, res) => {
 // Forgot password routes
 router.post("/forgot-password", requestPasswordReset);
 router.post("/reset-password", verifyOTPAndResetPassword);
+
+// Email verification routes
+router.get("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerificationEmail);
 
 module.exports = router;
 

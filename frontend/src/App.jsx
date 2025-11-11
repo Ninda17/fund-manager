@@ -4,10 +4,12 @@ import { UserProvider } from "./context/userContext"
 import Login from "./pages/Auth/Login"
 import Signup from "./pages/Auth/Signup"
 import ForgetPassword from "./pages/Auth/ForgetPassword"
+import VerifyEmail from "./pages/Auth/VerifyEmail"
 import PrivateRoute from "./routes/PrivateRoute"
 import AdminDashboard from "./pages/Admin/Dashboard"
 import FinanceDashboard from "./pages/Finance/Dashboard"
-import UserDashboard from "./pages/User/Dashboard"
+import ProgramDashboard from "./pages/Program/Dashboard"
+import CreateProject from './pages/Program/CreateProject'
 
 const App = () => {
   return (
@@ -18,6 +20,7 @@ const App = () => {
           <Route path="/login" element={<Login/>}/>
           <Route path='/signup' element={<Signup/>}/>
           <Route path='/forgot-password' element={<ForgetPassword/>}/>
+          <Route path='/verify-email' element={<VerifyEmail/>}/>
 
           <Route element={<PrivateRoute allowedRoles={["admin"]}/>}>
             <Route path='admin/dashboard' element={<AdminDashboard/>}/>
@@ -28,7 +31,8 @@ const App = () => {
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["program"]}/>}>
-            <Route path='user/dashboard' element={<UserDashboard/>}/>
+            <Route path='program/dashboard' element={<ProgramDashboard/>}/>
+            <Route path='program/createproject' element={<CreateProject/>}/>
           </Route>
 
         </Routes>

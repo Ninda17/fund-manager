@@ -134,7 +134,8 @@ const Signup = () => {
         registerData,
       );
 
-      navigate('/login');
+      // Navigate to verification page with email
+      navigate(`/verify-email?email=${encodeURIComponent(email.trim())}`);
     } catch (error) {
       console.error('Signup error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to create account. Please try again.';

@@ -33,6 +33,22 @@ const userSchema = new mongoose.Schema(
       enum: ["approved", "pending", "rejected"],
       default: "pending",
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      default: null,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
+    },
+    deleteAfter: {
+      type: Date,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -40,6 +56,10 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// TTL Index for automatic cleanup of unverified users (7 days)
+// MongoDB will automatically delete documents when deleteAfter date passes
+userSchema.index({ deleteAfter: 1 }, { expireAfterSeconds: 0 });
 
 // ✅ Ensure only one admin exists
 userSchema.pre("save", async function (next) {
@@ -50,6 +70,8 @@ userSchema.pre("save", async function (next) {
       return next(err);
     }
     this.isApproved = "approved"; // Auto-approve admin
+    this.isEmailVerified = true; // Auto-verify admin email
+    this.deleteAfter = null; // Never delete admin accounts
   }
   next();
 });

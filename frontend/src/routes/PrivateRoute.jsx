@@ -26,8 +26,10 @@ const PrivateRoute = ({ allowedRoles }) => {
       return <Navigate to="/admin/dashboard" replace />
     } else if (user.role === 'finance') {
       return <Navigate to="/finance/dashboard" replace />
+    } else if (user.role === 'program') {
+      return <Navigate to="/program/dashboard" replace />
     } else {
-      return <Navigate to="/user/dashboard" replace />
+      return <Navigate to="/login" replace />
     }
   }
 

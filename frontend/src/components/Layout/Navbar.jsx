@@ -10,7 +10,8 @@ const Navbar = () => {
   const getDashboardPath = () => {
     if (user?.role === 'admin') return '/admin/dashboard'
     if (user?.role === 'finance') return '/finance/dashboard'
-    return '/user/dashboard'
+    if (user?.role === 'program') return '/program/dashboard'
+    return '/login'
   }
   
   const dashboardPath = getDashboardPath()

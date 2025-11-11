@@ -39,7 +39,12 @@ const SideMenu = ({ activeMenu }) => {
   const programMenuItems = [
     {
       name: 'Dashboard',
-      path: '/user/dashboard',
+      path: '/program/dashboard',
+      icon: dashboardIcon
+    },
+    {
+      name: 'Create Project',
+      path: '/program/createproject',
       icon: dashboardIcon
     },
     // Add more program menu items here as needed

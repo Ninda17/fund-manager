@@ -81,8 +81,10 @@ const Login = () => {
         navigate('/admin/dashboard');
       } else if (data.user.role === 'finance') {
         navigate('/finance/dashboard');
+      } else if (data.user.role === 'program') {
+        navigate('/program/dashboard');
       } else {
-        navigate('/user/dashboard');
+        navigate('/signup');
       }
     } catch (error) {
       console.error('Login error:', error);
