@@ -10,6 +10,7 @@ import AdminDashboard from "./pages/Admin/Dashboard"
 import FinanceDashboard from "./pages/Finance/Dashboard"
 import ProgramDashboard from "./pages/Program/Dashboard"
 import CreateProject from './pages/Program/CreateProject'
+import Profile from './pages/Auth/Profile'
 
 const App = () => {
   return (
@@ -33,6 +34,10 @@ const App = () => {
           <Route element={<PrivateRoute allowedRoles={["program"]}/>}>
             <Route path='program/dashboard' element={<ProgramDashboard/>}/>
             <Route path='program/createproject' element={<CreateProject/>}/>
+          </Route>
+
+          <Route element={<PrivateRoute allowedRoles={["admin", "finance", "program"]}/>}>
+            <Route path='profile' element={<Profile/>}/>
           </Route>
 
         </Routes>

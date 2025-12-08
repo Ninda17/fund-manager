@@ -1,9 +1,8 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { useUserAuth } from '../../hooks/useUserAuth'
 
-const Navbar = () => {
-  const [openSideMenu, setOpenMenu] = useState(false)
+const Navbar = ({ openSideMenu, setOpenSideMenu }) => {
   const { user } = useUserAuth()
   
   // Determine dashboard path based on user role
@@ -21,17 +20,26 @@ const Navbar = () => {
       <div className="flex items-center justify-between">
         {/* Fund Manager Title - Left side */}
         <Link to={dashboardPath} className="text-xl text-black">
-          Fund Tracker
+          Tarayana Fund Manager
         </Link>
         
         {/* Mobile Menu Button */}
         <button
-          onClick={() => setOpenMenu(!openSideMenu)}
+          onClick={() => setOpenSideMenu(!openSideMenu)}
           className="lg:hidden text-gray-600 hover:text-gray-900"
+          aria-label="Toggle menu"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          {openSideMenu ? (
+            // Close icon (X) when menu is open
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            // Hamburger icon when menu is closed
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

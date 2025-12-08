@@ -2,11 +2,18 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUserAuth } from '../../hooks/useUserAuth'
 
-const SideMenu = ({ activeMenu }) => {
+const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
   const { user, logout } = useUserAuth()
   const location = useLocation()
   const isAdmin = user?.role === 'admin'
   const isFinance = user?.role === 'finance'
+  
+  // Close mobile menu when a link is clicked
+  const handleLinkClick = () => {
+    if (setOpenSideMenu) {
+      setOpenSideMenu(false)
+    }
+  }
 
   // Shared Dashboard icon
   const dashboardIcon = (
@@ -82,7 +89,7 @@ const SideMenu = ({ activeMenu }) => {
       <div className="px-6 pb-6 border-b border-gray-200">
         <div className="flex flex-col items-center">
           {/* Avatar */}
-          <div className="relative mb-3">
+          <Link to="/profile" onClick={handleLinkClick} className="relative mb-3 cursor-pointer hover:opacity-80 transition-opacity">
             {user?.profileImageUrl ? (
               <img
                 src={user.profileImageUrl}
@@ -96,7 +103,7 @@ const SideMenu = ({ activeMenu }) => {
                 </svg>
               </div>
             )}
-          </div>
+          </Link>
           
           {/* Role Badge */}
           <div className="mb-2">
@@ -125,6 +132,7 @@ const SideMenu = ({ activeMenu }) => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={handleLinkClick}
               className={`flex items-center px-6 py-3 mb-1 relative ${
                 active
                   ? 'bg-primary text-white'

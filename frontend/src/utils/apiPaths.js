@@ -6,6 +6,7 @@ export const API_PATHS = {
     REGISTER: `${API_BASE}/auth/register`,
     LOGIN: `${API_BASE}/auth/login`,
     PROFILE: `${API_BASE}/auth/profile`,
+    UPDATE_PASSWORD: `${API_BASE}/auth/update-password`,
     UPLOAD_IMAGE: `${API_BASE}/auth/upload-image`,
     FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
     RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
