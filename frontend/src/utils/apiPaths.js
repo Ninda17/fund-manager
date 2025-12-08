@@ -13,5 +13,14 @@ export const API_PATHS = {
     VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
     RESEND_VERIFICATION: `${API_BASE}/auth/resend-verification`,
   },
+  // Admin endpoints
+  ADMIN: {
+    USERS: `${API_BASE}/admin/users`,
+  },
+  // Program endpoints
+  PROGRAM: {
+    CREATE_PROJECT: `${API_BASE}/program/projects`,
+    FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
+  },
 };
 

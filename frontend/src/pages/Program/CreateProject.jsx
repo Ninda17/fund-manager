@@ -1,14 +1,573 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
+import Input from '../../components/input/Input'
+import axiosInstance from '../../utils/axiosInstance'
+import { API_PATHS } from '../../utils/apiPaths'
+import { useNavigate } from 'react-router-dom'
 
 const CreateProject = () => {
+  const navigate = useNavigate()
+  
+  // Form state
+  const [projectId, setProjectId] = useState('')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [financePersonnel, setFinancePersonnel] = useState('')
+  const [donorName, setDonorName] = useState('')
+  const [amountDonated, setAmountDonated] = useState('')
+  const [currency, setCurrency] = useState('USD')
+  const [projectType, setProjectType] = useState('Education')
+  const [activities, setActivities] = useState([])
+  
+  // Finance users list
+  const [financeUsers, setFinanceUsers] = useState([])
+  const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(true)
+  
+  // Form errors
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  
+  // Fetch finance users on mount
+  useEffect(() => {
+    const fetchFinanceUsers = async () => {
+      try {
+        setLoadingFinanceUsers(true)
+        const response = await axiosInstance.get(API_PATHS.PROGRAM.FINANCE_PERSONNEL)
+        if (response.data.success) {
+          setFinanceUsers(response.data.data)
+        }
+      } catch (error) {
+        setError('Failed to load finance personnel. Please refresh the page.', error)
+      } finally {
+        setLoadingFinanceUsers(false)
+      }
+    }
+    
+    fetchFinanceUsers()
+  }, [])
+  
+  // Add new activity
+  const addActivity = () => {
+    setActivities([
+      ...activities,
+      {
+        activityId: `ACT${Date.now()}`,
+        name: '',
+        description: '',
+        budget: '',
+        subActivities: []
+      }
+    ])
+  }
+  
+  // Remove activity
+  const removeActivity = (index) => {
+    setActivities(activities.filter((_, i) => i !== index))
+  }
+  
+  // Update activity
+  const updateActivity = (index, field, value) => {
+    const updated = [...activities]
+    updated[index][field] = value
+    setActivities(updated)
+  }
+  
+  // Add sub-activity
+  const addSubActivity = (activityIndex) => {
+    const updated = [...activities]
+    updated[activityIndex].subActivities.push({
+      name: '',
+      budget: ''
+    })
+    setActivities(updated)
+  }
+  
+  // Remove sub-activity
+  const removeSubActivity = (activityIndex, subIndex) => {
+    const updated = [...activities]
+    updated[activityIndex].subActivities = updated[activityIndex].subActivities.filter(
+      (_, i) => i !== subIndex
+    )
+    setActivities(updated)
+  }
+  
+  // Update sub-activity
+  const updateSubActivity = (activityIndex, subIndex, field, value) => {
+    const updated = [...activities]
+    updated[activityIndex].subActivities[subIndex][field] = value
+    setActivities(updated)
+  }
+  
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    
+    // Validation
+    if (!projectId.trim()) {
+      setError('Project ID is required')
+      return
+    }
+    
+    if (!title.trim()) {
+      setError('Project title is required')
+      return
+    }
+    
+    if (!startDate) {
+      setError('Start date is required')
+      return
+    }
+    
+    if (!endDate) {
+      setError('End date is required')
+      return
+    }
+    
+    if (new Date(endDate) < new Date(startDate)) {
+      setError('End date must be after start date')
+      return
+    }
+    
+    if (!financePersonnel) {
+      setError('Please select a finance personnel')
+      return
+    }
+    
+    if (!donorName.trim()) {
+      setError('Donor name is required')
+      return
+    }
+    
+    if (!amountDonated || parseFloat(amountDonated) < 0) {
+      setError('Amount donated must be a non-negative number')
+      return
+    }
+    
+    // Validate activities
+    for (let i = 0; i < activities.length; i++) {
+      const activity = activities[i]
+      if (!activity.activityId.trim()) {
+        setError(`Activity ${i + 1}: Activity ID is required`)
+        return
+      }
+      if (!activity.name.trim()) {
+        setError(`Activity ${i + 1}: Activity name is required`)
+        return
+      }
+      
+      // Validate sub-activities
+      for (let j = 0; j < activity.subActivities.length; j++) {
+        const subActivity = activity.subActivities[j]
+        if (!subActivity.name.trim()) {
+          setError(`Activity ${i + 1}, Sub-activity ${j + 1}: Name is required`)
+          return
+        }
+      }
+    }
+    
+    setLoading(true)
+    
+    try {
+      // Prepare activities data
+      const activitiesData = activities.map(activity => ({
+        activityId: activity.activityId.trim(),
+        name: activity.name.trim(),
+        description: activity.description.trim() || undefined,
+        budget: activity.budget ? parseFloat(activity.budget) : 0,
+        subActivities: activity.subActivities.map(sub => ({
+          name: sub.name.trim(),
+          budget: sub.budget ? parseFloat(sub.budget) : 0
+        }))
+      }))
+      
+      const projectData = {
+        projectId: projectId.trim(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        startDate,
+        endDate,
+        financePersonnel,
+        donorName: donorName.trim(),
+        amountDonated: parseFloat(amountDonated),
+        currency,
+        projectType,
+        activities: activitiesData
+      }
+      
+      const response = await axiosInstance.post(
+        API_PATHS.PROGRAM.CREATE_PROJECT,
+        projectData
+      )
+      
+      if (response.data.success) {
+        // Navigate to dashboard or project list
+        navigate('/program/dashboard')
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to create project. Please try again.'
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
   return (
     <DashboardLayout>
-        <div>
-            Create prj
+      <div className="max-w-4xl mx-auto p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Create New Project</h1>
+          <p className="text-gray-600">Fill in the details to create a new project</p>
         </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          
+          
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit}>
+            {/* Basic Information */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Project ID *"
+                  placeholder="e.g., PROJ001"
+                  value={projectId}
+                  onChange={(e) => {
+                    setProjectId(e.target.value)
+                    setError('')
+                  }}
+                />
+                
+                <Input
+                  label="Project Title *"
+                  placeholder="Enter project title"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value)
+                    setError('')
+                  }}
+                />
+              </div>
+              
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => {
+                    setDescription(e.target.value)
+                    setError('')
+                  }}
+                  placeholder="Enter project description"
+                  rows="3"
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+            </div>
+            
+            {/* Dates */}
+            <div className="mb-8">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value)
+                      setError('')
+                    }}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    End Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value)
+                      setError('')
+                    }}
+                    min={startDate}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Finance Personnel */}
+            <div className="mb-8">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Finance Personnel *
+                </label>
+                {loadingFinanceUsers ? (
+                  <div className="text-gray-500">Loading finance personnel...</div>
+                ) : financeUsers.length === 0 ? (
+                  <div className="text-red-500">No verified and approved finance personnel available</div>
+                ) : (
+                  <select
+                    value={financePersonnel}
+                    onChange={(e) => {
+                      setFinancePersonnel(e.target.value)
+                      setError('')
+                    }}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">Select finance personnel</option>
+                    {financeUsers.map(user => (
+                      <option key={user._id} value={user._id}>
+                        {user.name} ({user.email})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-10"></div>
+            
+            {/* Donor Information */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Funding Information</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                <Input
+                  label="Donor Name *"
+                  placeholder="Enter donor name"
+                  value={donorName}
+                  onChange={(e) => {
+                    setDonorName(e.target.value)
+                    setError('')
+                  }}
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Amount Donated *"
+                    type="number"
+                    placeholder="0.00"
+                    value={amountDonated}
+                    onChange={(e) => {
+                      setAmountDonated(e.target.value)
+                      setError('')
+                    }}
+                    min="0"
+                    step="0.01"
+                  />
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Currency *
+                    </label>
+                    <select
+                      value={currency}
+                      onChange={(e) => {
+                        setCurrency(e.target.value)
+                        setError('')
+                      }}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    >
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="BTN">BTN</option>
+                    </select>
+                  </div>
+                </div>
+                  
+              </div>
+            </div>
+            
+            {/* Project Type */}
+            <div className="mb-8">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Project Type *
+                </label>
+                <select
+                  value={projectType}
+                  onChange={(e) => {
+                    setProjectType(e.target.value)
+                    setError('')
+                  }}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="Education">Education</option>
+                  <option value="Welfare">Welfare</option>
+                  <option value="Youth">Youth</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-10"></div>
+            
+            {/* Activities */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Activities</h2>
+                <button
+                  type="button"
+                  onClick={addActivity}
+                  className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+                >
+                  + Add Activity
+                </button>
+              </div>
+              
+              {activities.map((activity, activityIndex) => (
+                <div key={activityIndex} className="mb-6 p-4 border border-gray-200 rounded-lg">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-md font-medium text-gray-800">Activity {activityIndex + 1}</h3>
+                    <button
+                      type="button"
+                      onClick={() => removeActivity(activityIndex)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <Input
+                      label="Activity ID *"
+                      placeholder="e.g., ACT001"
+                      value={activity.activityId}
+                      onChange={(e) => updateActivity(activityIndex, 'activityId', e.target.value)}
+                    />
+                    
+                    <Input
+                      label="Activity Name *"
+                      placeholder="Enter activity name"
+                      value={activity.name}
+                      onChange={(e) => updateActivity(activityIndex, 'name', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Activity Description
+                    </label>
+                    <textarea
+                      value={activity.description}
+                      onChange={(e) => updateActivity(activityIndex, 'description', e.target.value)}
+                      placeholder="Enter activity description"
+                      rows="2"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <Input
+                      label="Activity Budget"
+                      type="number"
+                      placeholder="0.00"
+                      value={activity.budget}
+                      onChange={(e) => updateActivity(activityIndex, 'budget', e.target.value)}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  
+                  {/* Sub-Activities */}
+                  <div className="ml-4 border-l-2 border-gray-200 pl-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium text-gray-700">Sub-Activities</h4>
+                      <button
+                        type="button"
+                        onClick={() => addSubActivity(activityIndex)}
+                        className="px-3 py-1 text-xs font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+                      >
+                        + Add Sub-Activity
+                      </button>
+                    </div>
+                    
+                    {activity.subActivities.map((subActivity, subIndex) => (
+                      <div key={subIndex} className="mb-3 p-3 bg-gray-50 rounded-md">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs text-gray-600">Sub-Activity {subIndex + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSubActivity(activityIndex, subIndex)}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Input
+                            label="Name *"
+                            placeholder="Enter sub-activity name"
+                            value={subActivity.name}
+                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'name', e.target.value)}
+                          />
+                          
+                          <Input
+                            label="Budget"
+                            type="number"
+                            placeholder="0.00"
+                            value={subActivity.budget}
+                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'budget', e.target.value)}
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              
+              {activities.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No activities added. Click "Add Activity" to get started.
+                </div>
+              )}
+            </div>
+            
+            {/* Submit Button */}
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate('/program/dashboard')}
+                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0}
+                className={`px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-colors ${
+                  loading || !projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {loading ? 'Creating...' : 'Create Project'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </DashboardLayout>
-   
   )
 }
 

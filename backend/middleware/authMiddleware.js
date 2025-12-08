@@ -32,18 +32,35 @@ const adminOnly = (req, res, next) => {
     }
 }
 
-// middleware for finance role access
+// Middleware to check if user has program role
 const financeOnly = (req, res, next) => {
-    if (req.user && (req.user.role == 'admin' || req.user.role == 'finance')) {
-        next()
-    } else {
-        res.status(403).json({message: "access denied .. finance or admin only"})
-    }
-}
+  if (req.user && req.user.role === "finance") {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Finance role only.",
+    });
+  }
+};
+
+// Middleware to check if user has program role
+const programOnly = (req, res, next) => {
+  if (req.user && req.user.role === "program") {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Program role only.",
+    });
+  }
+};
+
 
 module.exports={
     protect, 
     adminOnly,
-    financeOnly
+    financeOnly,
+    programOnly
 }
 

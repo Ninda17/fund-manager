@@ -6,6 +6,7 @@ const connectDB = require("./config/database");
 
 const authRoutes = require("./routes/authRoutes")
 const adminRoutes = require("./routes/adminRoutes")
+const programRoutes = require("./routes/programRoutes")
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 //routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/program", programRoutes);
 
 //start server
 
