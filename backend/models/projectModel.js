@@ -259,8 +259,11 @@ projectSchema.pre("save", function (next) {
 });
 
 // Decrypt sensitive fields after retrieving
-const decryptProject = function(doc) {
+const decryptProject = function(doc, plainDoc = null) {
   if (!doc) return doc;
+  
+  // Use plainDoc if provided (from toObject), otherwise try to get raw values
+  const rawDoc = plainDoc || doc._doc || doc;
   
   // Decrypt donorName
   if (doc.donorName && typeof doc.donorName === 'string' && doc.donorName.includes(':')) {
@@ -273,37 +276,67 @@ const decryptProject = function(doc) {
   }
   
   // Decrypt amountDonated (decrypt string, convert back to number)
-  if (doc.amountDonated !== undefined && doc.amountDonated !== null) {
-    if (typeof doc.amountDonated === 'string' && doc.amountDonated.includes(':')) {
+  // Check raw document value first, as Mongoose may have tried to cast it
+  const rawAmountDonated = rawDoc.amountDonated;
+  if (rawAmountDonated !== undefined && rawAmountDonated !== null) {
+    if (typeof rawAmountDonated === 'string' && rawAmountDonated.includes(':')) {
       // Decrypt the encrypted string
-      const decrypted = decrypt(doc.amountDonated);
+      const decrypted = decrypt(rawAmountDonated);
       // Convert back to Number
       doc.amountDonated = parseFloat(decrypted) || 0;
     } else if (typeof doc.amountDonated === 'number') {
-      // Already a number (shouldn't happen if encryption is working, but handle it)
-      doc.amountDonated = doc.amountDonated;
+      // If doc.amountDonated is a number but raw is encrypted string, decrypt it
+      if (typeof rawAmountDonated === 'string' && rawAmountDonated.includes(':')) {
+        const decrypted = decrypt(rawAmountDonated);
+        doc.amountDonated = parseFloat(decrypted) || 0;
+      }
+      // Otherwise keep the number (shouldn't happen if encrypted, but handle it)
     }
   }
   
   // Decrypt startDate
-  if (doc.startDate !== undefined && doc.startDate !== null) {
-    if (typeof doc.startDate === 'string' && doc.startDate.includes(':')) {
-      const decrypted = decrypt(doc.startDate);
+  // Check raw document value first, as Mongoose may have tried to cast it to Date
+  const rawStartDate = rawDoc.startDate;
+  if (rawStartDate !== undefined && rawStartDate !== null) {
+    if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
+      const decrypted = decrypt(rawStartDate);
       doc.startDate = new Date(decrypted);
     } else if (doc.startDate instanceof Date) {
-      // Already a Date (shouldn't happen if encryption is working, but handle it)
-      doc.startDate = doc.startDate;
+      // If doc.startDate is a Date but raw is encrypted string, decrypt it
+      if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
+        const decrypted = decrypt(rawStartDate);
+        doc.startDate = new Date(decrypted);
+      } else if (isNaN(doc.startDate.getTime())) {
+        // Invalid date - might be because casting failed, try raw value
+        if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
+          const decrypted = decrypt(rawStartDate);
+          doc.startDate = new Date(decrypted);
+        }
+      }
+      // Otherwise keep the date (shouldn't happen if encrypted, but handle it)
     }
   }
   
   // Decrypt endDate
-  if (doc.endDate !== undefined && doc.endDate !== null) {
-    if (typeof doc.endDate === 'string' && doc.endDate.includes(':')) {
-      const decrypted = decrypt(doc.endDate);
+  // Check raw document value first, as Mongoose may have tried to cast it to Date
+  const rawEndDate = rawDoc.endDate;
+  if (rawEndDate !== undefined && rawEndDate !== null) {
+    if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
+      const decrypted = decrypt(rawEndDate);
       doc.endDate = new Date(decrypted);
     } else if (doc.endDate instanceof Date) {
-      // Already a Date (shouldn't happen if encryption is working, but handle it)
-      doc.endDate = doc.endDate;
+      // If doc.endDate is a Date but raw is encrypted string, decrypt it
+      if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
+        const decrypted = decrypt(rawEndDate);
+        doc.endDate = new Date(decrypted);
+      } else if (isNaN(doc.endDate.getTime())) {
+        // Invalid date - might be because casting failed, try raw value
+        if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
+          const decrypted = decrypt(rawEndDate);
+          doc.endDate = new Date(decrypted);
+        }
+      }
+      // Otherwise keep the date (shouldn't happen if encrypted, but handle it)
     }
   }
   
@@ -379,14 +412,20 @@ projectSchema.post(['find', 'findOne', 'findOneAndUpdate', 'findOneAndDelete'], 
   if (!docs) return;
   
   if (Array.isArray(docs)) {
-    docs.forEach(doc => decryptProject(doc));
+    docs.forEach(doc => {
+      // Convert to plain object to access raw values, then decrypt
+      const plainDoc = doc.toObject ? doc.toObject({ getters: false }) : doc;
+      decryptProject(doc, plainDoc);
+    });
   } else {
-    decryptProject(docs);
+    const plainDoc = docs.toObject ? docs.toObject({ getters: false }) : docs;
+    decryptProject(docs, plainDoc);
   }
 });
 
 projectSchema.post('save', function(doc) {
-  decryptProject(doc);
+  const plainDoc = doc.toObject ? doc.toObject({ getters: false }) : doc;
+  decryptProject(doc, plainDoc);
 });
 
 module.exports = mongoose.model("Project", projectSchema);

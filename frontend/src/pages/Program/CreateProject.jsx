@@ -204,7 +204,7 @@ const CreateProject = () => {
       
       if (response.data.success) {
         // Navigate to dashboard or project list
-        navigate('/program/dashboard')
+        navigate('/program/projects')
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to create project. Please try again.'
@@ -549,7 +549,7 @@ const CreateProject = () => {
             <div className="flex justify-end space-x-4">
               <button
                 type="button"
-                onClick={() => navigate('/program/dashboard')}
+                onClick={() => navigate('/program/projects')}
                 className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition-colors"
               >
                 Cancel

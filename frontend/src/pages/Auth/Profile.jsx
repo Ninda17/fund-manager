@@ -313,7 +313,7 @@ const Profile = () => {
                     className="hidden"
                   />
                 </div>
-                <div>
+      <div>
                   <button
                     type="button"
                     onClick={handleAvatarClick}

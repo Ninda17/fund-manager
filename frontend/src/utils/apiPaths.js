@@ -20,6 +20,7 @@ export const API_PATHS = {
   // Program endpoints
   PROGRAM: {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
+    GET_PROJECTS: `${API_BASE}/program/projects`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },
 };

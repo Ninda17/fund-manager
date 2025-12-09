@@ -247,8 +247,62 @@ const getFinancePersonnel = async (req, res) => {
   }
 };
 
+const getAllProjects = async (req, res) => {
+  try {
+    // Get all projects created by the logged-in user (programPersonnel)
+    // Use lean() to get plain objects, then decrypt manually
+    const projects = await Project.find({
+      programPersonnel: req.user.id
+    })
+    .select("projectId title startDate endDate financePersonnel amountDonated currency")
+    .populate("financePersonnel", "name email")
+    .lean()
+    .sort({ createdAt: -1 });
+
+    // Decrypt the encrypted fields manually
+    const { decrypt } = require("../utils/encryption");
+    const decryptedProjects = projects.map(project => {
+      const decrypted = { ...project };
+      
+      // Decrypt amountDonated
+      if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
+        decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
+      }
+      
+      // Decrypt startDate
+      if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
+        decrypted.startDate = new Date(decrypt(decrypted.startDate));
+      }
+      
+      // Decrypt endDate
+      if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
+        decrypted.endDate = new Date(decrypt(decrypted.endDate));
+      }
+      
+      // Decrypt currency
+      if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
+        decrypted.currency = decrypt(decrypted.currency);
+      }
+      
+      return decrypted;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: decryptedProjects.length,
+      data: decryptedProjects,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
+  getAllProjects,
 };
 
