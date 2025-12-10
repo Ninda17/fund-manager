@@ -53,7 +53,7 @@ const CreateProject = () => {
     setActivities([
       ...activities,
       {
-        activityId: `ACT${Date.now()}`,
+        activityId: '',
         name: '',
         description: '',
         budget: '',
@@ -78,6 +78,7 @@ const CreateProject = () => {
   const addSubActivity = (activityIndex) => {
     const updated = [...activities]
     updated[activityIndex].subActivities.push({
+      subactivityId: '',
       name: '',
       budget: ''
     })
@@ -161,6 +162,10 @@ const CreateProject = () => {
       // Validate sub-activities
       for (let j = 0; j < activity.subActivities.length; j++) {
         const subActivity = activity.subActivities[j]
+        if (!subActivity.subactivityId || !subActivity.subactivityId.trim()) {
+          setError(`Activity ${i + 1}, Sub-activity ${j + 1}: Sub-activity ID is required`)
+          return
+        }
         if (!subActivity.name.trim()) {
           setError(`Activity ${i + 1}, Sub-activity ${j + 1}: Name is required`)
           return
@@ -178,6 +183,7 @@ const CreateProject = () => {
         description: activity.description.trim() || undefined,
         budget: activity.budget ? parseFloat(activity.budget) : 0,
         subActivities: activity.subActivities.map(sub => ({
+          subactivityId: sub.subactivityId.trim(),
           name: sub.name.trim(),
           budget: sub.budget ? parseFloat(sub.budget) : 0
         }))
@@ -515,14 +521,23 @@ const CreateProject = () => {
                           </button>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          <Input
+                            label="Sub-Activity ID *"
+                            placeholder="e.g., SUB001"
+                            value={subActivity.subactivityId || ''}
+                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'subactivityId', e.target.value)}
+                          />
+                          
                           <Input
                             label="Name *"
                             placeholder="Enter sub-activity name"
                             value={subActivity.name}
                             onChange={(e) => updateSubActivity(activityIndex, subIndex, 'name', e.target.value)}
                           />
-                          
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <Input
                             label="Budget"
                             type="number"

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { encrypt, decrypt } = require("../utils/encryption");
 
 const subActivitySchema = new mongoose.Schema({
+  subactivityId: { type: String, required: true },
   name: { type: String, required: true },
   budget: { 
     type: Number, 
@@ -49,7 +50,7 @@ const projectSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    projectId: { type: String, required: true, unique: true },
+    projectId: { type: String, required: true },
     title: { type: String, required: true },
     description: { 
       type: String, 

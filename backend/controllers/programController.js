@@ -126,6 +126,13 @@ const createProject = async (req, res) => {
         // Validate subActivities if provided
         if (activity.subActivities && Array.isArray(activity.subActivities)) {
           for (const subActivity of activity.subActivities) {
+            if (!subActivity.subactivityId) {
+              return res.status(400).json({
+                success: false,
+                message: "Each sub-activity must have a subactivityId",
+              });
+            }
+            
             if (!subActivity.name) {
               return res.status(400).json({
                 success: false,
