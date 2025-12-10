@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createProject, getFinancePersonnel, getAllProjects } = require("../controllers/programController");
+const { createProject, getFinancePersonnel, getAllProjects, getProjectById } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
 
 
@@ -12,6 +12,9 @@ router.get("/finance-personnel", getFinancePersonnel);
 
 // Get all projects created by logged-in user
 router.get("/projects", getAllProjects);
+
+// Get project by ID
+router.get("/projects/:id", getProjectById);
 
 // Create project
 router.post("/projects", createProject);

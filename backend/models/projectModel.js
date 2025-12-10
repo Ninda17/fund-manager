@@ -8,6 +8,11 @@ const subActivitySchema = new mongoose.Schema({
     required: false, 
     default: 0,
     min: [0, "Budget cannot be negative"]
+  },
+  expense: { 
+    type: Number, 
+    default: 0,
+    min: [0, "Expense cannot be negative"]
   }
 });
 
@@ -21,7 +26,20 @@ const activitySchema = new mongoose.Schema({
     default: 0,
     min: [0, "Budget cannot be negative"]
   },
-  subActivities: [subActivitySchema]
+  expense: { 
+    type: Number, 
+    default: 0,
+    min: [0, "Expense cannot be negative"]
+  },
+  subActivities: {
+    type: [subActivitySchema],
+    validate: {
+      validator: function (value) {
+        return value.length > 0; // ❌ reject if empty
+      },
+      message: "Every activity must have at least one sub-activity."
+    }
+  }
 });
 
 const projectSchema = new mongoose.Schema(
@@ -65,10 +83,22 @@ const projectSchema = new mongoose.Schema(
       type: String,
       required: true,
       default: "Education",
-      enum: ["Education", "Welfare", "Youth"]
+      enum: ["Education", "Welfare", "Youth", "other"]
     },
-
-    activities: [activitySchema]
+    totalExpense: { 
+      type: Number, 
+      default: 0, 
+      min: [0, "Total expense cannot be negative"]
+    },
+    activities: {
+      type: [activitySchema],
+      validate: {
+        validator: function (value) {
+          return value.length > 0; // ❌ reject if empty
+        },
+        message: "Project must have at least one activity."
+      }
+    }
   },
   { timestamps: true }
 );
@@ -119,6 +149,33 @@ projectSchema.pre("save", async function (next) {
 projectSchema.pre("save", function (next) {
   if (this.startDate && this.endDate && this.endDate < this.startDate) {
     return next(new Error("End date must be after start date"));
+  }
+  next();
+});
+
+
+// It calculates activity expenses from sub-activities and total expense from activities
+projectSchema.pre("save", function (next) {
+  if (this.activities && Array.isArray(this.activities)) {
+    this.activities.forEach(activity => {
+      // Calculate activity expense = sum of all sub-activity expenses
+      if (activity.subActivities && Array.isArray(activity.subActivities)) {
+        activity.expense = activity.subActivities.reduce(
+          (sum, sa) => sum + (sa.expense || 0),
+          0
+        );
+      } else {
+        activity.expense = 0;
+      }
+    });
+
+    // Calculate total expense = sum of all activity expenses
+    this.totalExpense = this.activities.reduce(
+      (sum, act) => sum + (act.expense || 0),
+      0
+    );
+  } else {
+    this.totalExpense = 0;
   }
   next();
 });
@@ -201,49 +258,131 @@ projectSchema.pre("save", function (next) {
     }
   }
   
-  // Encrypt activity names, descriptions, and budgets
+  // Encrypt totalExpense
+  if (this.totalExpense !== undefined && this.totalExpense !== null) {
+    const isEncrypted = typeof this.totalExpense === 'string' && this.totalExpense.includes(':');
+    
+    if (!isEncrypted) {
+      const expense = typeof this.totalExpense === 'number' ? this.totalExpense : parseFloat(this.totalExpense);
+      if (isNaN(expense) || expense < 0) {
+        return next(new Error("Total expense must be a non-negative number"));
+      }
+      const encryptedValue = encrypt(expense.toString());
+      this._doc.totalExpense = encryptedValue;
+      this.markModified('totalExpense');
+    }
+  }
+  
+  // Encrypt activity names, descriptions, budgets, and expenses
   if (this.activities && Array.isArray(this.activities)) {
-    this.activities = this.activities.map(activity => {
-      const encryptedActivity = { ...activity };
+    // Ensure _doc.activities exists
+    if (!this._doc) {
+      this._doc = {};
+    }
+    if (!this._doc.activities) {
+      this._doc.activities = [];
+    }
+    
+    // Convert to plain objects to avoid Mongoose type casting
+    const activitiesArray = this.activities.map((activity, index) => {
+      const encryptedActivity = activity.toObject ? activity.toObject() : { ...activity };
       
       // Encrypt activity name
-      if (activity.name && typeof activity.name === 'string' && !activity.name.includes(':')) {
-        encryptedActivity.name = encrypt(activity.name);
+      if (encryptedActivity.name && typeof encryptedActivity.name === 'string' && !encryptedActivity.name.includes(':')) {
+        encryptedActivity.name = encrypt(encryptedActivity.name);
       }
       
       // Encrypt activity description
-      if (activity.description && typeof activity.description === 'string' && activity.description !== '' && !activity.description.includes(':')) {
-        encryptedActivity.description = encrypt(activity.description);
+      if (encryptedActivity.description && typeof encryptedActivity.description === 'string' && encryptedActivity.description !== '' && !encryptedActivity.description.includes(':')) {
+        encryptedActivity.description = encrypt(encryptedActivity.description);
       }
       
       // Encrypt activity budget
-      if (activity.budget !== undefined && activity.budget !== null) {
-        const isBudgetEncrypted = typeof activity.budget === 'string' && activity.budget.includes(':');
-        if (!isBudgetEncrypted) {
-          const budget = typeof activity.budget === 'number' ? activity.budget : parseFloat(activity.budget);
-          if (!isNaN(budget) && budget >= 0) {
-            encryptedActivity.budget = encrypt(budget.toString());
+      if (encryptedActivity.budget !== undefined && encryptedActivity.budget !== null) {
+        const isEncrypted = typeof encryptedActivity.budget === 'string' && encryptedActivity.budget.includes(':');
+        if (!isEncrypted) {
+          const budget = typeof encryptedActivity.budget === 'number' ? encryptedActivity.budget : parseFloat(encryptedActivity.budget);
+          if (isNaN(budget) || budget < 0) {
+            return next(new Error("Activity budget must be a non-negative number"));
           }
+          const encryptedBudget = encrypt(budget.toString());
+          encryptedActivity.budget = encryptedBudget;
+          // Set in _doc to bypass Mongoose casting
+          if (!this._doc.activities[index]) {
+            this._doc.activities[index] = {};
+          }
+          this._doc.activities[index].budget = encryptedBudget;
         }
       }
       
-      // Encrypt sub-activity names and budgets
-      if (activity.subActivities && Array.isArray(activity.subActivities)) {
-        encryptedActivity.subActivities = activity.subActivities.map(subActivity => {
-          const encryptedSubActivity = { ...subActivity };
+      // Encrypt activity expense
+      if (encryptedActivity.expense !== undefined && encryptedActivity.expense !== null) {
+        const isEncrypted = typeof encryptedActivity.expense === 'string' && encryptedActivity.expense.includes(':');
+        if (!isEncrypted) {
+          const expense = typeof encryptedActivity.expense === 'number' ? encryptedActivity.expense : parseFloat(encryptedActivity.expense);
+          if (isNaN(expense) || expense < 0) {
+            return next(new Error("Activity expense must be a non-negative number"));
+          }
+          const encryptedExpense = encrypt(expense.toString());
+          encryptedActivity.expense = encryptedExpense;
+          // Set in _doc to bypass Mongoose casting
+          if (!this._doc.activities[index]) {
+            this._doc.activities[index] = {};
+          }
+          this._doc.activities[index].expense = encryptedExpense;
+        }
+      }
+      
+      // Encrypt sub-activity names, budgets, and expenses
+      if (encryptedActivity.subActivities && Array.isArray(encryptedActivity.subActivities)) {
+        if (!this._doc.activities[index]) {
+          this._doc.activities[index] = {};
+        }
+        if (!this._doc.activities[index].subActivities) {
+          this._doc.activities[index].subActivities = [];
+        }
+        
+        encryptedActivity.subActivities = encryptedActivity.subActivities.map((subActivity, subIndex) => {
+          const encryptedSubActivity = subActivity.toObject ? subActivity.toObject() : { ...subActivity };
           
-          if (subActivity.name && typeof subActivity.name === 'string' && !subActivity.name.includes(':')) {
-            encryptedSubActivity.name = encrypt(subActivity.name);
+          // Encrypt sub activity name
+          if (encryptedSubActivity.name && typeof encryptedSubActivity.name === 'string' && !encryptedSubActivity.name.includes(':')) {
+            encryptedSubActivity.name = encrypt(encryptedSubActivity.name);
           }
           
-          // Encrypt sub-activity budget
-          if (subActivity.budget !== undefined && subActivity.budget !== null) {
-            const isBudgetEncrypted = typeof subActivity.budget === 'string' && subActivity.budget.includes(':');
-            if (!isBudgetEncrypted) {
-              const budget = typeof subActivity.budget === 'number' ? subActivity.budget : parseFloat(subActivity.budget);
-              if (!isNaN(budget) && budget >= 0) {
-                encryptedSubActivity.budget = encrypt(budget.toString());
+          // Encrypt sub activity budget
+          if (encryptedSubActivity.budget !== undefined && encryptedSubActivity.budget !== null) {
+            const isEncrypted = typeof encryptedSubActivity.budget === 'string' && encryptedSubActivity.budget.includes(':');
+            if (!isEncrypted) {
+              const budget = typeof encryptedSubActivity.budget === 'number' ? encryptedSubActivity.budget : parseFloat(encryptedSubActivity.budget);
+              if (isNaN(budget) || budget < 0) {
+                return next(new Error("Sub-activity budget must be a non-negative number"));
               }
+              const encryptedBudget = encrypt(budget.toString());
+              encryptedSubActivity.budget = encryptedBudget;
+              // Set in _doc to bypass Mongoose casting
+              if (!this._doc.activities[index].subActivities[subIndex]) {
+                this._doc.activities[index].subActivities[subIndex] = {};
+              }
+              this._doc.activities[index].subActivities[subIndex].budget = encryptedBudget;
+            }
+          }
+          
+          // Encrypt sub activity expense
+          if (encryptedSubActivity.expense !== undefined && encryptedSubActivity.expense !== null) {
+            const isEncrypted = typeof encryptedSubActivity.expense === 'string' && encryptedSubActivity.expense.includes(':');
+            if (!isEncrypted) {
+              const expense = typeof encryptedSubActivity.expense === 'number' ? encryptedSubActivity.expense : parseFloat(encryptedSubActivity.expense);
+              if (isNaN(expense) || expense < 0) {
+                return next(new Error("Sub-activity expense must be a non-negative number"));
+              }
+              const encryptedExpense = encrypt(expense.toString());
+              encryptedSubActivity.expense = encryptedExpense;
+              // Set in _doc to bypass Mongoose casting
+              if (!this._doc.activities[index].subActivities[subIndex]) {
+                this._doc.activities[index].subActivities[subIndex] = {};
+              }
+              this._doc.activities[index].subActivities[subIndex].expense = encryptedExpense;
             }
           }
           
@@ -253,6 +392,12 @@ projectSchema.pre("save", function (next) {
       
       return encryptedActivity;
     });
+    
+    // Set the encrypted activities array and mark as modified
+    this.activities = activitiesArray;
+    // Also set in _doc to ensure Mongoose uses the encrypted values
+    this._doc.activities = activitiesArray;
+    this.markModified('activities');
   }
   
   next();
@@ -350,7 +495,21 @@ const decryptProject = function(doc, plainDoc = null) {
     doc.projectType = decrypt(doc.projectType);
   }
   
-  // Decrypt activity names, descriptions, and budgets
+  // Decrypt totalExpense
+  const rawTotalExpense = rawDoc.totalExpense;
+  if (rawTotalExpense !== undefined && rawTotalExpense !== null) {
+    if (typeof rawTotalExpense === 'string' && rawTotalExpense.includes(':')) {
+      const decrypted = decrypt(rawTotalExpense);
+      doc.totalExpense = parseFloat(decrypted) || 0;
+    } else if (typeof doc.totalExpense === 'number') {
+      if (typeof rawTotalExpense === 'string' && rawTotalExpense.includes(':')) {
+        const decrypted = decrypt(rawTotalExpense);
+        doc.totalExpense = parseFloat(decrypted) || 0;
+      }
+    }
+  }
+  
+  // Decrypt activity names, descriptions, budgets, and expenses
   if (doc.activities && Array.isArray(doc.activities)) {
     doc.activities = doc.activities.map(activity => {
       const decryptedActivity = { ...activity };
@@ -371,28 +530,51 @@ const decryptProject = function(doc, plainDoc = null) {
           const decrypted = decrypt(activity.budget);
           decryptedActivity.budget = parseFloat(decrypted) || 0;
         } else if (typeof activity.budget === 'number') {
-          // Already a number
+          // Keep the number if not encrypted
           decryptedActivity.budget = activity.budget;
         }
       }
       
-      // Decrypt sub-activity names and budgets
+      // Decrypt activity expense
+      if (activity.expense !== undefined && activity.expense !== null) {
+        if (typeof activity.expense === 'string' && activity.expense.includes(':')) {
+          const decrypted = decrypt(activity.expense);
+          decryptedActivity.expense = parseFloat(decrypted) || 0;
+        } else if (typeof activity.expense === 'number') {
+          // Keep the number if not encrypted
+          decryptedActivity.expense = activity.expense;
+        }
+      }
+      
+      // Decrypt sub-activity names, budgets, and expenses
       if (activity.subActivities && Array.isArray(activity.subActivities)) {
         decryptedActivity.subActivities = activity.subActivities.map(subActivity => {
           const decryptedSubActivity = { ...subActivity };
           
+          // Decrypt sub activity name
           if (subActivity.name && typeof subActivity.name === 'string' && subActivity.name.includes(':')) {
             decryptedSubActivity.name = decrypt(subActivity.name);
           }
           
-          // Decrypt sub-activity budget
+          // Decrypt sub activity budget
           if (subActivity.budget !== undefined && subActivity.budget !== null) {
             if (typeof subActivity.budget === 'string' && subActivity.budget.includes(':')) {
               const decrypted = decrypt(subActivity.budget);
               decryptedSubActivity.budget = parseFloat(decrypted) || 0;
             } else if (typeof subActivity.budget === 'number') {
-              // Already a number
+              // Keep the number if not encrypted
               decryptedSubActivity.budget = subActivity.budget;
+            }
+          }
+          
+          // Decrypt sub activity expense
+          if (subActivity.expense !== undefined && subActivity.expense !== null) {
+            if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
+              const decrypted = decrypt(subActivity.expense);
+              decryptedSubActivity.expense = parseFloat(decrypted) || 0;
+            } else if (typeof subActivity.expense === 'number') {
+              // Keep the number if not encrypted
+              decryptedSubActivity.expense = subActivity.expense;
             }
           }
           

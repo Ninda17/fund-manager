@@ -414,7 +414,7 @@ const MyProjects = () => {
             </div>
           </div>
         )}
-      </div>
+        </div>
     </DashboardLayout>
   )
 }

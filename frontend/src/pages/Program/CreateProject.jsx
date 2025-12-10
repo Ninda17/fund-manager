@@ -414,6 +414,7 @@ const CreateProject = () => {
                   <option value="Education">Education</option>
                   <option value="Welfare">Welfare</option>
                   <option value="Youth">Youth</option>
+                  <option value="other">other</option>
                 </select>
               </div>
             </div>

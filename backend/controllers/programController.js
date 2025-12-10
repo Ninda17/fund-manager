@@ -300,9 +300,147 @@ const getAllProjects = async (req, res) => {
   }
 };
 
+const getProjectById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate id format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Get project by ID, ensuring it belongs to the logged-in user
+    const project = await Project.findOne({
+      _id: id,
+      programPersonnel: req.user.id
+    })
+    .populate("financePersonnel", "name email")
+    .populate("programPersonnel", "name email")
+    .lean();
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    // Decrypt all encrypted fields manually
+    const { decrypt } = require("../utils/encryption");
+    const decrypted = { ...project };
+    
+    // Decrypt donorName
+    if (decrypted.donorName && typeof decrypted.donorName === 'string' && decrypted.donorName.includes(':')) {
+      decrypted.donorName = decrypt(decrypted.donorName);
+    }
+    
+    // Decrypt description
+    if (decrypted.description && typeof decrypted.description === 'string' && decrypted.description !== '' && decrypted.description.includes(':')) {
+      decrypted.description = decrypt(decrypted.description);
+    }
+    
+    // Decrypt amountDonated
+    if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
+      decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
+    }
+    
+    // Decrypt startDate
+    if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
+      decrypted.startDate = new Date(decrypt(decrypted.startDate));
+    }
+    
+    // Decrypt endDate
+    if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
+      decrypted.endDate = new Date(decrypt(decrypted.endDate));
+    }
+    
+    // Decrypt currency
+    if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
+      decrypted.currency = decrypt(decrypted.currency);
+    }
+    
+    // Decrypt projectType
+    if (decrypted.projectType && typeof decrypted.projectType === 'string' && decrypted.projectType.includes(':')) {
+      decrypted.projectType = decrypt(decrypted.projectType);
+    }
+    
+    // Decrypt totalExpense
+    if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
+      decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
+    }
+    
+    // Decrypt activities
+    if (decrypted.activities && Array.isArray(decrypted.activities)) {
+      decrypted.activities = decrypted.activities.map(activity => {
+        const decryptedActivity = { ...activity };
+        
+        // Decrypt activity name
+        if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
+          decryptedActivity.name = decrypt(decryptedActivity.name);
+        }
+        
+        // Decrypt activity description
+        if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
+          decryptedActivity.description = decrypt(decryptedActivity.description);
+        }
+        
+        // Decrypt activity budget
+        if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
+          decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
+        }
+        
+        // Decrypt activity expense
+        if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
+          decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
+        }
+        
+        // Decrypt subActivities
+        if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
+          decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
+            const decryptedSubActivity = { ...subActivity };
+            
+            // Decrypt sub activity name
+            if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
+              decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
+            }
+            
+            // Decrypt sub activity budget
+            if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
+              decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
+            }
+            
+            // Decrypt sub activity expense
+            if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
+              decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
+            }
+            
+            return decryptedSubActivity;
+          });
+        }
+        
+        return decryptedActivity;
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: decrypted,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
   getAllProjects,
+  getProjectById,
 };
 
