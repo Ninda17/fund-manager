@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createProject, getFinancePersonnel, getAllProjects, getProjectById } = require("../controllers/programController");
+const { createProject, getFinancePersonnel, getAllProjects, getProjectById, getActivityById } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
 
 
@@ -15,6 +15,9 @@ router.get("/projects", getAllProjects);
 
 // Get project by ID
 router.get("/projects/:id", getProjectById);
+
+// Get activity by ID (within a project)
+router.get("/projects/:projectId/activities/:activityId", getActivityById);
 
 // Create project
 router.post("/projects", createProject);

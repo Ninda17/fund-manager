@@ -34,70 +34,72 @@ const MyProjects = () => {
       return
     }
 
-    const query = searchQuery.toLowerCase().trim()
-    const filtered = allProjects.filter((project) => {
-      const projectId = (project.projectId || '').toLowerCase()
-      const title = (project.title || '').toLowerCase()
-      const financeName = (project.financePersonnel?.name || '').toLowerCase()
-      const financeEmail = (project.financePersonnel?.email || '').toLowerCase()
-      const amount = project.amountDonated?.toString() || ''
-      const currency = (project.currency || '').toLowerCase()
+      const query = searchQuery.toLowerCase().trim()
+      const filtered = allProjects.filter((project) => {
+        const projectId = (project.projectId || '').toLowerCase()
+        const title = (project.title || '').toLowerCase()
+        const financeName = (project.financePersonnel?.name || '').toLowerCase()
+        const financeEmail = (project.financePersonnel?.email || '').toLowerCase()
+        const amount = project.amountDonated?.toString() || ''
+        const currency = (project.currency || '').toLowerCase()
+        const progressStatus = (project.projectStatus || 'Not Started').toLowerCase()
 
-      // Format dates for searching
-      let startDateFormatted = ''
-      let endDateFormatted = ''
-      let startDateYear = ''
-      let endDateYear = ''
-      let startDateMonth = ''
-      let endDateMonth = ''
-      let startDateDay = ''
-      let endDateDay = ''
+        // Format dates for searching
+        let startDateFormatted = ''
+        let endDateFormatted = ''
+        let startDateYear = ''
+        let endDateYear = ''
+        let startDateMonth = ''
+        let endDateMonth = ''
+        let startDateDay = ''
+        let endDateDay = ''
 
-      if (project.startDate) {
-        try {
-          const startDate = new Date(project.startDate)
-          if (!isNaN(startDate.getTime())) {
-            startDateFormatted = formatDate(project.startDate).toLowerCase()
-            startDateYear = startDate.getFullYear().toString()
-            startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
-            startDateDay = startDate.getDate().toString()
+        if (project.startDate) {
+          try {
+            const startDate = new Date(project.startDate)
+            if (!isNaN(startDate.getTime())) {
+              startDateFormatted = formatDate(project.startDate).toLowerCase()
+              startDateYear = startDate.getFullYear().toString()
+              startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+              startDateDay = startDate.getDate().toString()
+            }
+          } catch (e) {
+            e
           }
-        } catch (e) {
-          e
         }
-      }
 
-      if (project.endDate) {
-        try {
-          const endDate = new Date(project.endDate)
-          if (!isNaN(endDate.getTime())) {
-            endDateFormatted = formatDate(project.endDate).toLowerCase()
-            endDateYear = endDate.getFullYear().toString()
-            endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
-            endDateDay = endDate.getDate().toString()
+        if (project.endDate) {
+          try {
+            const endDate = new Date(project.endDate)
+            if (!isNaN(endDate.getTime())) {
+              endDateFormatted = formatDate(project.endDate).toLowerCase()
+              endDateYear = endDate.getFullYear().toString()
+              endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+              endDateDay = endDate.getDate().toString()
+            }
+          } catch (e) {
+            e
           }
-        } catch (e) {
-          e
         }
-      }
 
-      return (
-        projectId.includes(query) ||
-        title.includes(query) ||
-        financeName.includes(query) ||
-        financeEmail.includes(query) ||
-        amount.includes(query) ||
-        currency.includes(query) ||
-        startDateFormatted.includes(query) ||
-        endDateFormatted.includes(query) ||
-        startDateYear.includes(query) ||
-        endDateYear.includes(query) ||
-        startDateMonth.includes(query) ||
-        endDateMonth.includes(query) ||
-        startDateDay.includes(query) ||
-        endDateDay.includes(query)
-      )
-    })
+        return (
+          projectId.includes(query) ||
+          title.includes(query) ||
+          financeName.includes(query) ||
+          financeEmail.includes(query) ||
+          amount.includes(query) ||
+          currency.includes(query) ||
+          progressStatus.includes(query) ||
+          startDateFormatted.includes(query) ||
+          endDateFormatted.includes(query) ||
+          startDateYear.includes(query) ||
+          endDateYear.includes(query) ||
+          startDateMonth.includes(query) ||
+          endDateMonth.includes(query) ||
+          startDateDay.includes(query) ||
+          endDateDay.includes(query)
+        )
+      })
 
     setProjects(filtered)
   }, [searchQuery, allProjects])
@@ -133,6 +135,21 @@ const MyProjects = () => {
     
     const symbol = currencySymbols[currency] || currency
     return `${symbol}${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const calculateUtilization = (project) => {
+    if (!project || !project.amountDonated || project.amountDonated === 0) return 0
+    const totalExpense = project.totalExpense || 0
+    return Math.min((totalExpense / project.amountDonated) * 100, 100)
+  }
+
+  const getProgressBadgeStyle = (status) => {
+    const statusStyles = {
+      'Not Started': 'bg-gray-100 text-gray-700 border-gray-200',
+      'In Progress': 'bg-orange-100 text-orange-700 border-orange-200',
+      'Completed': 'bg-green-100 text-green-700 border-green-200'
+    }
+    return statusStyles[status] || statusStyles['Not Started']
   }
 
   if (loading) {
@@ -174,7 +191,7 @@ const MyProjects = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search by project ID, title, dates, finance personnel, amount, date..."
+                placeholder="Search by project ID, title, dates, finance personnel, amount, progress status..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
@@ -294,12 +311,15 @@ const MyProjects = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Utilization
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Progress
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {projects.map((project) => {
-                      // Static utilization value for now
-                      const utilization = 77
+                      const utilization = calculateUtilization(project)
+                      const progressStatus = project.projectStatus || 'Not Started'
                       return (
                         <tr 
                           key={project._id} 
@@ -331,7 +351,7 @@ const MyProjects = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col items-start">
-                              <span className="text-sm text-gray-600 mb-1">{utilization}%</span>
+                              <span className="text-sm text-gray-600 mb-1">{utilization.toFixed(1)}%</span>
                               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                                 <div
                                   className="bg-gray-900 h-full rounded-full transition-all"
@@ -339,6 +359,11 @@ const MyProjects = () => {
                                 />
                               </div>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
+                              {progressStatus}
+                            </span>
                           </td>
                         </tr>
                       )
@@ -350,7 +375,10 @@ const MyProjects = () => {
 
             {/* Mobile/Tablet Card View */}
             <div className="lg:hidden space-y-4">
-              {projects.map((project) => (
+              {projects.map((project) => {
+                const utilization = calculateUtilization(project)
+                const progressStatus = project.projectStatus || 'Not Started'
+                return (
                 <div
                   key={project._id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
@@ -399,18 +427,27 @@ const MyProjects = () => {
                     <div className="pt-2 border-t border-gray-100">
                       <span className="text-xs text-gray-500 block mb-2">Utilization</span>
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-600 mb-2">77%</span>
+                        <span className="text-sm text-gray-600 mb-2">{utilization.toFixed(1)}%</span>
                         <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                           <div
                             className="bg-gray-900 h-full rounded-full transition-all"
-                            style={{ width: '77%' }}
+                            style={{ width: `${utilization}%` }}
                           />
                         </div>
                       </div>
                     </div>
+
+                    {/* Progress */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <span className="text-xs text-gray-500 block mb-2">Progress</span>
+                      <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
+                        {progressStatus}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

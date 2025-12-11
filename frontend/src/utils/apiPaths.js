@@ -21,6 +21,8 @@ export const API_PATHS = {
   PROGRAM: {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
     GET_PROJECTS: `${API_BASE}/program/projects`,
+    GET_PROJECT_BY_ID: (id) => `${API_BASE}/program/projects/${id}`,
+    GET_ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },
 };

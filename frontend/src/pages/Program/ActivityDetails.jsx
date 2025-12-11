@@ -4,84 +4,73 @@ import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
 import { API_PATHS } from '../../utils/apiPaths'
 
-const ProjectDetails = () => {
-  const { id } = useParams()
+const ActivityDetails = () => {
+  const { projectId, activityId } = useParams()
   const navigate = useNavigate()
+  const [activity, setActivity] = useState(null)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [filteredActivities, setFilteredActivities] = useState([])
+  const [filteredSubActivities, setFilteredSubActivities] = useState([])
 
   useEffect(() => {
-    if (id) {
-      fetchProjectDetails()
+    if (projectId && activityId) {
+      fetchActivityDetails()
     }
-  }, [id])
+  }, [projectId, activityId])
 
-  // Filter activities based on search query
+  // Filter sub-activities based on search query
   useEffect(() => {
-    if (!project || !project.activities) {
-      setFilteredActivities([])
+    if (!activity || !activity.subActivities) {
+      setFilteredSubActivities([])
       return
     }
 
     if (!searchQuery.trim()) {
-      setFilteredActivities(project.activities)
+      setFilteredSubActivities(activity.subActivities)
       return
     }
 
     const query = searchQuery.toLowerCase().trim()
-    const filtered = project.activities.filter((activity) => {
-      const activityId = (activity.activityId || '').toLowerCase()
-      const name = (activity.name || '').toLowerCase()
-      const budgetFormatted = formatCurrency(activity.budget, project.currency).toLowerCase()
-      const expenseFormatted = formatCurrency(activity.expense, project.currency).toLowerCase()
-      const budgetRaw = (activity.budget?.toString() || '').toLowerCase()
-      const expenseRaw = (activity.expense?.toString() || '').toLowerCase()
-      const utilization = calculateActivityUtilization(activity).toFixed(1)
-      const progressStatus = (activity.projectStatus || 'Not Started').toLowerCase()
+    const filtered = activity.subActivities.filter((subActivity) => {
+      const subactivityId = (subActivity.subactivityId || '').toLowerCase()
+      const name = (subActivity.name || '').toLowerCase()
+      const budgetFormatted = formatCurrency(subActivity.budget, project?.currency).toLowerCase()
+      const expenseFormatted = formatCurrency(subActivity.expense, project?.currency).toLowerCase()
+      const budgetRaw = (subActivity.budget?.toString() || '').toLowerCase()
+      const expenseRaw = (subActivity.expense?.toString() || '').toLowerCase()
+      const utilization = calculateSubActivityUtilization(subActivity).toFixed(1)
 
       return (
-        activityId.includes(query) ||
+        subactivityId.includes(query) ||
         name.includes(query) ||
         budgetFormatted.includes(query) ||
         expenseFormatted.includes(query) ||
         budgetRaw.includes(query) ||
         expenseRaw.includes(query) ||
-        utilization.includes(query) ||
-        progressStatus.includes(query)
+        utilization.includes(query)
       )
     })
 
-    setFilteredActivities(filtered)
-  }, [searchQuery, project])
+    setFilteredSubActivities(filtered)
+  }, [searchQuery, activity, project])
 
-  const fetchProjectDetails = async () => {
+  const fetchActivityDetails = async () => {
     try {
       setLoading(true)
       setError('')
-      const response = await axiosInstance.get(API_PATHS.PROGRAM.GET_PROJECT_BY_ID(id))
+      const response = await axiosInstance.get(API_PATHS.PROGRAM.GET_ACTIVITY_BY_ID(projectId, activityId))
       if (response.data.success) {
-        setProject(response.data.data)
+        setActivity(response.data.data.activity)
+        setProject(response.data.data.project)
       }
     } catch (error) {
-      console.error('Error fetching project details:', error)
-      setError(error.response?.data?.message || 'Failed to load project details. Please try again.')
+      console.error('Error fetching activity details:', error)
+      setError(error.response?.data?.message || 'Failed to load activity details. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return 'Invalid Date'
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   const formatCurrency = (amount, currency) => {
@@ -99,23 +88,23 @@ const ProjectDetails = () => {
     return `${symbol}${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
-  const calculateUtilization = () => {
-    if (!project || !project.amountDonated || project.amountDonated === 0) return 0
-    const totalExpense = project.totalExpense || 0
-    return Math.min((totalExpense / project.amountDonated) * 100, 100)
-  }
-
-  const calculateRemainingBudget = () => {
-    if (!project) return 0
-    const amountDonated = project.amountDonated || 0
-    const totalExpense = project.totalExpense || 0
-    return Math.max(amountDonated - totalExpense, 0)
-  }
-
-  const calculateActivityUtilization = (activity) => {
+  const calculateActivityUtilization = () => {
     if (!activity || !activity.budget || activity.budget === 0) return 0
     const expense = activity.expense || 0
     return Math.min((expense / activity.budget) * 100, 100)
+  }
+
+  const calculateRemainingBudget = () => {
+    if (!activity) return 0
+    const budget = activity.budget || 0
+    const expense = activity.expense || 0
+    return Math.max(budget - expense, 0)
+  }
+
+  const calculateSubActivityUtilization = (subActivity) => {
+    if (!subActivity || !subActivity.budget || subActivity.budget === 0) return 0
+    const expense = subActivity.expense || 0
+    return Math.min((expense / subActivity.budget) * 100, 100)
   }
 
   const getProgressBadgeStyle = (status) => {
@@ -131,7 +120,7 @@ const ProjectDetails = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading project details...</div>
+          <div className="text-lg">Loading activity details...</div>
         </div>
       </DashboardLayout>
     )
@@ -143,13 +132,13 @@ const ProjectDetails = () => {
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
           <div className="mb-6">
             <button
-              onClick={() => navigate('/program/projects')}
+              onClick={() => navigate(`/program/projects/${projectId}`)}
               className="text-primary hover:text-primary-dark mb-4 flex items-center"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back to Projects
+              Back to Project
             </button>
           </div>
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -160,17 +149,17 @@ const ProjectDetails = () => {
     )
   }
 
-  if (!project) {
+  if (!activity) {
     return (
       <DashboardLayout>
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
           <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Project not found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Activity not found</h3>
             <button
-              onClick={() => navigate('/program/projects')}
+              onClick={() => navigate(`/program/projects/${projectId}`)}
               className="mt-4 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
             >
-              Back to Projects
+              Back to Project
             </button>
           </div>
         </div>
@@ -178,8 +167,9 @@ const ProjectDetails = () => {
     )
   }
 
-  const utilization = calculateUtilization()
+  const utilization = calculateActivityUtilization()
   const remainingBudget = calculateRemainingBudget()
+  const progressStatus = activity.projectStatus || 'Not Started'
 
   return (
     <DashboardLayout>
@@ -187,27 +177,27 @@ const ProjectDetails = () => {
         {/* Header */}
         <div className="mb-4 sm:mb-6">
           <button
-            onClick={() => navigate('/program/projects')}
+            onClick={() => navigate(`/program/projects/${projectId}`)}
             className="text-primary hover:text-primary-dark mb-3 sm:mb-4 flex items-center text-sm sm:text-base"
           >
             <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Projects
+            Back to Project
           </button>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">{project.title}</h1>
-          <p className="text-gray-600 text-xs sm:text-sm lg:text-base break-words">Project ID: {project.projectId}</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">{activity.name}</h1>
+          <p className="text-gray-600 text-xs sm:text-sm lg:text-base break-words">Activity ID: {activity.activityId}</p>
         </div>
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Amount Donated */}
+          {/* Budget */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Amount Donated</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Budget</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                  {formatCurrency(project.amountDonated, project.currency)}
+                  {formatCurrency(activity.budget, project?.currency)}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2 sm:ml-4">
@@ -218,13 +208,13 @@ const ProjectDetails = () => {
             </div>
           </div>
 
-          {/* Total Expense */}
+          {/* Expense */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Expense</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Expense</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                  {formatCurrency(project.totalExpense, project.currency)}
+                  {formatCurrency(activity.expense, project?.currency)}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2 sm:ml-4">
@@ -262,7 +252,7 @@ const ProjectDetails = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-xs sm:text-sm text-gray-600 mb-1">Remaining Budget</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                  {formatCurrency(remainingBudget, project.currency)}
+                  {formatCurrency(remainingBudget, project?.currency)}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2 sm:ml-4">
@@ -274,57 +264,37 @@ const ProjectDetails = () => {
           </div>
         </div>
 
-        {/* Project Details */}
+        {/* Activity Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Project Information</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Activity Information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div className="break-words">
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Description</p>
-              <p className="text-sm sm:text-base text-gray-900 break-words">{project.description || 'N/A'}</p>
+              <p className="text-sm sm:text-base text-gray-900 break-words">{activity.description || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Project Type</p>
-              <p className="text-sm sm:text-base text-gray-900">{project.projectType || 'N/A'}</p>
+              <p className="text-xs sm:text-sm text-gray-500 mb-1">Progress Status</p>
+              <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
+                {progressStatus}
+              </span>
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Start Date</p>
-              <p className="text-sm sm:text-base text-gray-900">{formatDate(project.startDate)}</p>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">End Date</p>
-              <p className="text-sm sm:text-base text-gray-900">{formatDate(project.endDate)}</p>
-            </div>
-            <div className="break-words">
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Donor Name</p>
-              <p className="text-sm sm:text-base text-gray-900 break-words">{project.donorName || 'N/A'}</p>
+              <p className="text-xs sm:text-sm text-gray-500 mb-1">Project</p>
+              <p className="text-sm sm:text-base text-gray-900">{project?.title || project?.projectId || 'N/A'}</p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Currency</p>
-              <p className="text-sm sm:text-base text-gray-900">{project.currency || 'N/A'}</p>
-            </div>
-            <div className="break-words">
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Finance Personnel</p>
-              <div className="text-sm sm:text-base">
-                <p className="text-gray-900 font-medium break-words">{project.financePersonnel?.name || 'N/A'}</p>
-                <p className="text-gray-600 break-words text-xs sm:text-sm">{project.financePersonnel?.email || ''}</p>
-              </div>
-            </div>
-            <div className="break-words">
-              <p className="text-xs sm:text-sm text-gray-500 mb-1">Program Personnel</p>
-              <div className="text-sm sm:text-base">
-                <p className="text-gray-900 font-medium break-words">{project.programPersonnel?.name || 'N/A'}</p>
-                <p className="text-gray-600 break-words text-xs sm:text-sm">{project.programPersonnel?.email || ''}</p>
-              </div>
+              <p className="text-sm sm:text-base text-gray-900">{project?.currency || 'N/A'}</p>
             </div>
           </div>
         </div>
 
-        {/* Activities Table */}
-        {project.activities && project.activities.length > 0 && (
+        {/* Sub-Activities Table */}
+        {activity.subActivities && activity.subActivities.length > 0 && (
           <>
-            {/* Activities Header */}
+            {/* Sub-Activities Header */}
             <div className="mb-4 sm:mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Sub-Activities</h2>
             </div>
 
             {/* Search Bar */}
@@ -346,7 +316,7 @@ const ProjectDetails = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search by activity ID, name, budget, expense, utilization, progress status..."
+                  placeholder="Search by sub-activity ID, name, budget, expense, utilization..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
@@ -373,11 +343,11 @@ const ProjectDetails = () => {
               </div>
               {searchQuery && (
                 <p className="mt-2 text-sm text-gray-600">
-                  {filteredActivities.length === 0 ? (
-                    <span>No activities found matching "{searchQuery}"</span>
+                  {filteredSubActivities.length === 0 ? (
+                    <span>No sub-activities found matching "{searchQuery}"</span>
                   ) : (
                     <span>
-                      Found {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'} matching "{searchQuery}"
+                      Found {filteredSubActivities.length} {filteredSubActivities.length === 1 ? 'sub-activity' : 'sub-activities'} matching "{searchQuery}"
                     </span>
                   )}
                 </p>
@@ -405,61 +375,48 @@ const ProjectDetails = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         UTILIZATION
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PROGRESS
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredActivities.length > 0 ? (
-                      filteredActivities.map((activity, index) => {
-                    const activityUtilization = calculateActivityUtilization(activity)
-                    const progressStatus = activity.projectStatus || 'Not Started'
-                    return (
-                      <tr 
-                        key={index} 
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/program/projects/${id}/activities/${activity._id}`)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-900">{activity.activityId}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-900">{activity.name}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatCurrency(activity.budget, project.currency)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatCurrency(activity.expense, project.currency)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col items-start">
-                            <span className="text-sm text-gray-600 mb-1">{activityUtilization.toFixed(1)}%</span>
-                            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                              <div
-                                className="bg-gray-900 h-full rounded-full transition-all"
-                                style={{ width: `${activityUtilization}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
-                            {progressStatus}
-                          </span>
-                        </td>
-                      </tr>
-                      )
-                    })
+                    {filteredSubActivities.length > 0 ? (
+                      filteredSubActivities.map((subActivity, index) => {
+                        const subActivityUtilization = calculateSubActivityUtilization(subActivity)
+                        return (
+                          <tr key={index} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">{subActivity.subactivityId}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-900">{subActivity.name}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">
+                                {formatCurrency(subActivity.budget, project?.currency)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">
+                                {formatCurrency(subActivity.expense, project?.currency)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col items-start">
+                                <span className="text-sm text-gray-600 mb-1">{subActivityUtilization.toFixed(1)}%</span>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <div
+                                    className="bg-gray-900 h-full rounded-full transition-all"
+                                    style={{ width: `${subActivityUtilization}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
                     ) : (
                       <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-sm text-gray-500">
-                          No activities found matching "{searchQuery}"
+                        <td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">
+                          No sub-activities found matching "{searchQuery}"
                         </td>
                       </tr>
                     )}
@@ -469,71 +426,82 @@ const ProjectDetails = () => {
 
               {/* Mobile/Tablet Card View */}
               <div className="lg:hidden divide-y divide-gray-200">
-                {filteredActivities.length > 0 ? (
-                  filteredActivities.map((activity, index) => {
-                const activityUtilization = calculateActivityUtilization(activity)
-                const progressStatus = activity.projectStatus || 'Not Started'
-                return (
-                  <div 
-                    key={index} 
-                    className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => navigate(`/program/projects/${id}/activities/${activity._id}`)}
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">ID</span>
-                        <span className="text-sm font-semibold text-gray-900">{activity.activityId}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">NAME</span>
-                        <span className="text-sm text-gray-900 text-right break-words ml-4">{activity.name}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">BUDGET</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatCurrency(activity.budget, project.currency)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">EXPENSE</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatCurrency(activity.expense, project.currency)}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-500">UTILIZATION</span>
-                          <span className="text-sm text-gray-600">{activityUtilization.toFixed(1)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-gray-900 h-full rounded-full transition-all"
-                            style={{ width: `${activityUtilization}%` }}
-                          />
+                {filteredSubActivities.length > 0 ? (
+                  filteredSubActivities.map((subActivity, index) => {
+                    const subActivityUtilization = calculateSubActivityUtilization(subActivity)
+                    return (
+                      <div key={index} className="p-4 sm:p-6">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">ID</span>
+                            <span className="text-sm font-semibold text-gray-900">{subActivity.subactivityId}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">NAME</span>
+                            <span className="text-sm text-gray-900 text-right break-words ml-4">{subActivity.name}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">BUDGET</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatCurrency(subActivity.budget, project?.currency)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">EXPENSE</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatCurrency(subActivity.expense, project?.currency)}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-gray-500">UTILIZATION</span>
+                              <span className="text-sm text-gray-600">{subActivityUtilization.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-gray-900 h-full rounded-full transition-all"
+                                style={{ width: `${subActivityUtilization}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">PROGRESS</span>
-                        <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
-                          {progressStatus}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  )
-                })
+                    )
+                  })
                 ) : (
                   <div className="p-8 text-center text-sm text-gray-500">
-                    No activities found matching "{searchQuery}"
+                    No sub-activities found matching "{searchQuery}"
                   </div>
                 )}
               </div>
             </div>
           </>
         )}
+
+        {/* No Sub-Activities Message */}
+        {(!activity.subActivities || activity.subActivities.length === 0) && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-16 h-16 text-gray-400 mx-auto mb-4"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 13.5V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121.75 6v7.5V18a2.25 2.25 0 01-2.25 2.25H4.5A2.25 2.25 0 012.25 18v-4.5zm19.5-4.5v2.25m0 3.75v3.75M12 18h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zM12 12h.008v.008H12v-.008zM12 14.25h.008v.008H12v-.008zM12 16.5h.008v.008H12v-.008z"
+              />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No sub-activities found</h3>
+            <p className="text-gray-500">This activity has no sub-activities</p>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )
 }
 
-export default ProjectDetails
+export default ActivityDetails

@@ -6,7 +6,7 @@ const subActivitySchema = new mongoose.Schema({
   name: { type: String, required: true },
   budget: { 
     type: Number, 
-    required: false, 
+    required: true, 
     default: 0,
     min: [0, "Budget cannot be negative"]
   },
@@ -23,7 +23,7 @@ const activitySchema = new mongoose.Schema({
   description: { type: String, required: false },
   budget: { 
     type: Number, 
-    required: false, 
+    required: true, 
     default: 0,
     min: [0, "Budget cannot be negative"]
   },
@@ -31,6 +31,12 @@ const activitySchema = new mongoose.Schema({
     type: Number, 
     default: 0,
     min: [0, "Expense cannot be negative"]
+  },
+  projectStatus: {
+    type: String,
+    required: false,
+    default: "Not Started",
+    enum: ["Not Started", "In Progress", "Completed"]
   },
   subActivities: {
     type: [subActivitySchema],
@@ -90,6 +96,12 @@ const projectSchema = new mongoose.Schema(
       type: Number, 
       default: 0, 
       min: [0, "Total expense cannot be negative"]
+    },
+    projectStatus: {
+      type: String,
+      required: false,
+      default: "Not Started",
+      enum: ["Not Started", "In Progress", "Completed"]
     },
     activities: {
       type: [activitySchema],

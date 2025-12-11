@@ -13,6 +13,7 @@ import CreateProject from './pages/Program/CreateProject'
 import Profile from './pages/Auth/Profile'
 import MyProjects from './pages/Program/Projects'
 import ProjectDetails from './pages/Program/ProjectDetails'
+import ActivityDetails from './pages/Program/ActivityDetails'
 
 const App = () => {
   return (
@@ -38,6 +39,7 @@ const App = () => {
             <Route path='program/createproject' element={<CreateProject/>}/>
             <Route path='program/projects' element={<MyProjects/>}/>
             <Route path='program/projects/:id' element={<ProjectDetails/>}/>
+            <Route path='program/projects/:projectId/activities/:activityId' element={<ActivityDetails/>}/>
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["admin", "finance", "program"]}/>}>

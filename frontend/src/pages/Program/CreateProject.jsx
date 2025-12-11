@@ -101,6 +101,56 @@ const CreateProject = () => {
     setActivities(updated)
   }
   
+  // Check if all required fields are filled
+  const isFormValid = () => {
+    // Check basic required fields
+    if (!projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0) {
+      return false
+    }
+    
+    // Check if amountDonated is valid
+    if (parseFloat(amountDonated) < 0 || isNaN(parseFloat(amountDonated))) {
+      return false
+    }
+    
+    // Check if endDate is after startDate
+    if (new Date(endDate) < new Date(startDate)) {
+      return false
+    }
+    
+    // Check if at least one activity exists
+    if (activities.length === 0) {
+      return false
+    }
+    
+    // Validate all activities
+    for (let i = 0; i < activities.length; i++) {
+      const activity = activities[i]
+      
+      // Check activity required fields
+      if (!activity.activityId || !activity.activityId.trim() || !activity.name.trim()) {
+        return false
+      }
+      
+      // Check if activity has at least one sub-activity
+      if (!activity.subActivities || activity.subActivities.length === 0) {
+        return false
+      }
+      
+      // Validate all sub-activities
+      for (let j = 0; j < activity.subActivities.length; j++) {
+        const subActivity = activity.subActivities[j]
+        
+        // Check sub-activity required fields
+        if (!subActivity.subactivityId || !subActivity.subactivityId.trim() || !subActivity.name.trim()) {
+          return false
+        }
+      }
+    }
+    
+    return true
+  }
+  
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -572,9 +622,9 @@ const CreateProject = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading || !projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0}
+                disabled={loading || !isFormValid()}
                 className={`px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-colors ${
-                  loading || !projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  loading || !isFormValid() ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 {loading ? 'Creating...' : 'Create Project'}
