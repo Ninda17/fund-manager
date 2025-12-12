@@ -17,8 +17,8 @@ export const API_PATHS = {
   // Admin endpoints
   ADMIN: {
     USERS: `${API_BASE}/admin/users`,
-    USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
-    USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
+    // USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
+    // USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
   },
   // Program endpoints
   PROGRAM: {
@@ -27,11 +27,14 @@ export const API_PATHS = {
     GET_PROJECT_BY_ID: (id) => `${API_BASE}/program/projects/${id}`,
     GET_ACTIVITY_BY_ID: (projectId, activityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    GET_ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
+    GET_ACTIVITY_BY_ID: (projectId, activityId) =>
+      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
     UPDATE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
     DELETE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
-    DELETE_ACTIVITY: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
+    DELETE_ACTIVITY: (projectId, activityId) =>
+      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
+    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>
+      `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },
 };

@@ -15,29 +15,6 @@ import AdminDashboard from "./pages/Admin/Dashboard";
 import FinanceDashboard from "./pages/Finance/Dashboard";
 import ProgramDashboard from "./pages/Program/Dashboard";
 import CreateProject from "./pages/Program/CreateProject";
-import Profile from "./pages/Auth/Profile";
-import MyProjects from "./pages/Program/Projects";
-import ProjectDetails from "./pages/Program/ProjectDetails";
-import ActivityDetails from "./pages/Program/ActivityDetails";
-import ManageUsers from "./pages/Admin/ManageUsers";
-import UserDetails from "./pages/Admin/UserDetails";
-import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import { UserProvider } from "./context/userContext";
-import Login from "./pages/Auth/Login";
-import Signup from "./pages/Auth/Signup";
-import ForgetPassword from "./pages/Auth/ForgetPassword";
-import VerifyEmail from "./pages/Auth/VerifyEmail";
-import PrivateRoute from "./routes/PrivateRoute";
-import AdminDashboard from "./pages/Admin/Dashboard";
-import FinanceDashboard from "./pages/Finance/Dashboard";
-import ProgramDashboard from "./pages/Program/Dashboard";
-import CreateProject from "./pages/Program/CreateProject";
 import EditProject from "./pages/Program/EditProject";
 import Profile from "./pages/Auth/Profile";
 import MyProjects from "./pages/Program/Projects";
@@ -57,8 +34,6 @@ const App = () => {
 
           <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
             <Route path="admin/dashboard" element={<AdminDashboard />} />
-            <Route path="admin/manage-user" element={<ManageUsers />} />
-            <Route path="admin/users/:id" element={<UserDetails />} />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["finance"]} />}>
