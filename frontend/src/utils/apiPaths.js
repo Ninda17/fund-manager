@@ -17,8 +17,8 @@ export const API_PATHS = {
   // Admin endpoints
   ADMIN: {
     USERS: `${API_BASE}/admin/users`,
-    // USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
-    // USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
+    USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
+    USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
   },
   // Program endpoints
   PROGRAM: {
