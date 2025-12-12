@@ -570,11 +570,736 @@ const getActivityById = async (req, res) => {
   }
 };
 
+const updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      projectId,
+      title,
+      description,
+      startDate,
+      endDate,
+      financePersonnel,
+      donorName,
+      amountDonated,
+      currency,
+      projectType,
+      projectStatus,
+      activities,
+    } = req.body;
+
+    // Validate id format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Find project by ID, ensuring it belongs to the logged-in user
+    // Use lean() to get plain object and avoid Mongoose document validation issues
+    const existingProject = await Project.findOne({
+      _id: id,
+      programPersonnel: req.user.id
+    }).lean();
+
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // If projectId is being updated, check for duplicates (excluding current project)
+    if (projectId && projectId !== existingProject.projectId) {
+      const duplicateProject = await Project.findOne({ 
+        projectId,
+        _id: { $ne: id } // Exclude current project
+      });
+      if (duplicateProject) {
+        return res.status(400).json({
+          success: false,
+          message: "Project with this projectId already exists",
+        });
+      }
+    }
+
+    // Build update object
+    const updateObj = {};
+
+    // Update projectId if provided
+    if (projectId !== undefined) {
+      updateObj.projectId = projectId;
+    }
+
+    // Update title if provided
+    if (title !== undefined) {
+      if (!title || !title.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Title cannot be empty",
+        });
+      }
+      updateObj.title = title.trim();
+    }
+
+    // Update description if provided
+    if (description !== undefined) {
+      updateObj.description = description || "";
+    }
+
+    // Update dates if provided
+    if (startDate !== undefined) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid startDate format",
+        });
+      }
+      updateObj.startDate = start;
+    }
+
+    if (endDate !== undefined) {
+      const end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid endDate format",
+        });
+      }
+      updateObj.endDate = end;
+    }
+
+    // Validate date range if both dates are provided
+    const finalStartDate = updateObj.startDate || existingProject.startDate;
+    const finalEndDate = updateObj.endDate || existingProject.endDate;
+    if (finalStartDate && finalEndDate) {
+      // Handle encrypted dates from existingProject
+      let start = finalStartDate instanceof Date ? finalStartDate : new Date(finalStartDate);
+      let end = finalEndDate instanceof Date ? finalEndDate : new Date(finalEndDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid date format",
+        });
+      }
+      
+      if (end < start) {
+        return res.status(400).json({
+          success: false,
+          message: "End date must be after start date",
+        });
+      }
+    }
+
+    // Update financePersonnel if provided
+    if (financePersonnel !== undefined) {
+      if (!financePersonnel.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid financePersonnel ID format",
+        });
+      }
+
+      // Verify financePersonnel exists and has role "finance"
+      const financeUser = await User.findById(financePersonnel);
+      if (!financeUser) {
+        return res.status(404).json({
+          success: false,
+          message: "Finance personnel user not found",
+        });
+      }
+
+      if (financeUser.role !== "finance") {
+        return res.status(400).json({
+          success: false,
+          message: "Finance personnel must be a user with role 'finance'",
+        });
+      }
+
+      updateObj.financePersonnel = financePersonnel;
+    }
+
+    // Update donorName if provided
+    if (donorName !== undefined) {
+      if (!donorName || !donorName.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Donor name cannot be empty",
+        });
+      }
+      updateObj.donorName = donorName.trim();
+    }
+
+    // Update amountDonated if provided
+    if (amountDonated !== undefined) {
+      const amount = parseFloat(amountDonated);
+      if (isNaN(amount) || amount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount donated must be a non-negative number",
+        });
+      }
+      updateObj.amountDonated = amount.toString(); // Will be encrypted by pre-save hook
+    }
+
+    // Update currency if provided
+    if (currency !== undefined) {
+      const validCurrencies = ["USD", "EUR", "BTN"];
+      if (!validCurrencies.includes(currency)) {
+        return res.status(400).json({
+          success: false,
+          message: `Currency must be one of: ${validCurrencies.join(", ")}`,
+        });
+      }
+      updateObj.currency = currency;
+    }
+
+    // Update projectType if provided
+    if (projectType !== undefined) {
+      const validProjectTypes = ["Education", "Welfare", "Youth", "other"];
+      if (!validProjectTypes.includes(projectType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Project type must be one of: ${validProjectTypes.join(", ")}`,
+        });
+      }
+      updateObj.projectType = projectType;
+    }
+
+    // Update projectStatus if provided
+    if (projectStatus !== undefined) {
+      const validStatuses = ["Not Started", "In Progress", "Completed"];
+      if (!validStatuses.includes(projectStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: `Project status must be one of: ${validStatuses.join(", ")}`,
+        });
+      }
+      updateObj.projectStatus = projectStatus;
+    }
+
+    // Update activities if provided
+    if (activities !== undefined) {
+      if (!Array.isArray(activities)) {
+        return res.status(400).json({
+          success: false,
+          message: "Activities must be an array",
+        });
+      }
+
+      // Validate activities structure
+      for (const activity of activities) {
+        if (!activity.activityId || !activity.name) {
+          return res.status(400).json({
+            success: false,
+            message: "Each activity must have activityId and name",
+          });
+        }
+
+        // Validate subActivities if provided
+        if (activity.subActivities && Array.isArray(activity.subActivities)) {
+          for (const subActivity of activity.subActivities) {
+            if (!subActivity.subactivityId) {
+              return res.status(400).json({
+                success: false,
+                message: "Each sub-activity must have a subactivityId",
+              });
+            }
+            
+            if (!subActivity.name) {
+              return res.status(400).json({
+                success: false,
+                message: "Each sub-activity must have a name",
+              });
+            }
+
+            // Validate budget if provided
+            if (subActivity.budget !== undefined && subActivity.budget !== null) {
+              const budget = parseFloat(subActivity.budget);
+              if (isNaN(budget) || budget < 0) {
+                return res.status(400).json({
+                  success: false,
+                  message: "Sub-activity budget must be a non-negative number",
+                });
+              }
+            }
+          }
+        }
+
+        // Validate activity budget if provided
+        if (activity.budget !== undefined && activity.budget !== null) {
+          const budget = parseFloat(activity.budget);
+          if (isNaN(budget) || budget < 0) {
+            return res.status(400).json({
+              success: false,
+              message: "Activity budget must be a non-negative number",
+            });
+          }
+        }
+      }
+
+      updateObj.activities = activities;
+    }
+
+    // Use findByIdAndUpdate with runValidators: false to avoid casting errors on encrypted fields
+    await Project.findByIdAndUpdate(
+      id,
+      { $set: updateObj },
+      { runValidators: false, new: false }
+    );
+
+    // Fetch the document again and save to trigger pre-save hooks (encryption and expense calculation)
+    const updatedProject = await Project.findById(id);
+    if (!updatedProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after update",
+      });
+    }
+
+    // Mark activities as modified if they were updated
+    if (activities !== undefined) {
+      updatedProject.markModified('activities');
+    }
+
+    // Reset totalExpense to undefined so it gets recalculated by pre-save hook
+    // This avoids validation errors on the encrypted value
+    updatedProject.totalExpense = undefined;
+    updatedProject.markModified('totalExpense');
+
+    // Save to trigger pre-save hooks (expense calculation and encryption)
+    await updatedProject.save();
+    
+    // Use the saved project for response
+    const savedProject = updatedProject;
+
+    // Project will be automatically decrypted by post-save hook
+    res.status(200).json({
+      success: true,
+      message: "Project updated successfully",
+      data: savedProject,
+    });
+  } catch (error) {
+    console.error("Update project error:", error);
+
+    // Handle validation errors from mongoose
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors,
+      });
+    }
+
+    // Handle duplicate key error (projectId)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Project with this projectId already exists",
+      });
+    }
+
+    // Handle custom validation errors from pre-save hooks
+    if (error.message.includes("Financial personnel") || 
+        error.message.includes("Program personnel") ||
+        error.message.includes("End date")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const deleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate id format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Find project by ID, ensuring it belongs to the logged-in user
+    const project = await Project.findOne({
+      _id: id,
+      programPersonnel: req.user.id
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Delete the project
+    await Project.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Project deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete project error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const deleteActivity = async (req, res) => {
+  try {
+    const { projectId, activityId } = req.params;
+
+    // Validate projectId format
+    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Validate activityId format (MongoDB ObjectId)
+    if (!activityId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid activity ID format",
+      });
+    }
+
+    // First, verify the project exists and belongs to the logged-in user
+    const project = await Project.findOne({
+      _id: projectId,
+      programPersonnel: req.user.id
+    }).lean();
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Check if activities array exists and has items
+    if (!project.activities || !Array.isArray(project.activities) || project.activities.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No activities found in this project",
+      });
+    }
+
+    // Verify the activity exists
+    const activityExists = project.activities.some(
+      (act) => act._id && act._id.toString() === activityId
+    );
+
+    if (!activityExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Activity not found",
+      });
+    }
+
+    // Use findByIdAndUpdate with $pull to remove the activity
+    // Use runValidators: false to avoid validation errors on encrypted fields
+    const result = await Project.findByIdAndUpdate(
+      projectId,
+      {
+        $pull: { activities: { _id: activityId } }
+      },
+      { runValidators: false, new: false }
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after update",
+      });
+    }
+
+    // Fetch the remaining activities to recalculate totalExpense
+    // Use lean() to avoid Mongoose casting issues with encrypted fields
+    const updatedProject = await Project.findById(projectId).lean();
+
+    if (!updatedProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after deletion",
+      });
+    }
+
+    // Recalculate totalExpense from remaining activities
+    // Need to decrypt expenses to calculate, then encrypt the result
+    const { decrypt, encrypt } = require("../utils/encryption");
+    let totalExpense = 0;
+
+    if (updatedProject.activities && Array.isArray(updatedProject.activities)) {
+      updatedProject.activities.forEach(activity => {
+        // Calculate activity expense from sub-activities (same logic as pre-save hook)
+        let activityExpense = 0;
+        if (activity.subActivities && Array.isArray(activity.subActivities)) {
+          activity.subActivities.forEach(subActivity => {
+            if (subActivity.expense !== undefined && subActivity.expense !== null) {
+              let subExpense = 0;
+              if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
+                subExpense = parseFloat(decrypt(subActivity.expense)) || 0;
+              } else if (typeof subActivity.expense === 'number') {
+                subExpense = subActivity.expense;
+              }
+              activityExpense += subExpense;
+            }
+          });
+        }
+        totalExpense += activityExpense;
+      });
+    }
+
+    // Update totalExpense directly using MongoDB native collection method
+    // This bypasses Mongoose casting which would fail on encrypted string values
+    // Encrypt the totalExpense value
+    const encryptedTotalExpense = encrypt(totalExpense.toString());
+    
+    // Use MongoDB native collection to bypass Mongoose schema casting
+    const mongoose = require("mongoose");
+    await Project.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(projectId) },
+      { $set: { totalExpense: encryptedTotalExpense } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Activity deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete activity error:", error);
+    
+    // Handle validation errors from mongoose
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors,
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const deleteSubActivity = async (req, res) => {
+  try {
+    const { projectId, activityId, subactivityId } = req.params;
+
+    // Validate projectId format
+    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Validate activityId format (MongoDB ObjectId)
+    if (!activityId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid activity ID format",
+      });
+    }
+
+    // Validate subactivityId format (MongoDB ObjectId)
+    if (!subactivityId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid subactivity ID format",
+      });
+    }
+
+    // First, verify the project exists and belongs to the logged-in user
+    const project = await Project.findOne({
+      _id: projectId,
+      programPersonnel: req.user.id
+    }).lean();
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Check if activities array exists and has items
+    if (!project.activities || !Array.isArray(project.activities) || project.activities.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No activities found in this project",
+      });
+    }
+
+    // Find the activity
+    const activity = project.activities.find(
+      (act) => act._id && act._id.toString() === activityId
+    );
+
+    if (!activity) {
+      return res.status(404).json({
+        success: false,
+        message: "Activity not found",
+      });
+    }
+
+    // Check if subActivities array exists and has items
+    if (!activity.subActivities || !Array.isArray(activity.subActivities) || activity.subActivities.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subactivities found in this activity",
+      });
+    }
+
+    // Verify the subactivity exists
+    const subactivityExists = activity.subActivities.some(
+      (subAct) => subAct._id && subAct._id.toString() === subactivityId
+    );
+
+    if (!subactivityExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Subactivity not found",
+      });
+    }
+
+    // Use findByIdAndUpdate with $pull to remove the subactivity from the activity's subActivities array
+    // Use runValidators: false to avoid validation errors on encrypted fields
+    const mongoose = require("mongoose");
+    const result = await Project.findByIdAndUpdate(
+      projectId,
+      {
+        $pull: { 
+          "activities.$[activity].subActivities": { _id: new mongoose.Types.ObjectId(subactivityId) }
+        }
+      },
+      {
+        arrayFilters: [{ "activity._id": new mongoose.Types.ObjectId(activityId) }],
+        runValidators: false,
+        new: false
+      }
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after update",
+      });
+    }
+
+    // Fetch the updated project to recalculate expenses
+    // Use lean() to avoid Mongoose casting issues with encrypted fields
+    const updatedProject = await Project.findById(projectId).lean();
+
+    if (!updatedProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after deletion",
+      });
+    }
+
+    // Recalculate expenses: activity expenses from sub-activities, then totalExpense from activities
+    // Need to decrypt expenses to calculate, then encrypt the result
+    const { decrypt, encrypt } = require("../utils/encryption");
+    
+    let totalExpense = 0;
+    const updates = {};
+
+    if (updatedProject.activities && Array.isArray(updatedProject.activities)) {
+      updatedProject.activities.forEach((activity, activityIndex) => {
+        // Calculate activity expense from sub-activities
+        let activityExpense = 0;
+        if (activity.subActivities && Array.isArray(activity.subActivities)) {
+          activity.subActivities.forEach(subActivity => {
+            if (subActivity.expense !== undefined && subActivity.expense !== null) {
+              let subExpense = 0;
+              if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
+                subExpense = parseFloat(decrypt(subActivity.expense)) || 0;
+              } else if (typeof subActivity.expense === 'number') {
+                subExpense = subActivity.expense;
+              }
+              activityExpense += subExpense;
+            }
+          });
+        }
+        
+        // Encrypt the calculated activity expense
+        const encryptedActivityExpense = encrypt(activityExpense.toString());
+        updates[`activities.${activityIndex}.expense`] = encryptedActivityExpense;
+        
+        totalExpense += activityExpense;
+      });
+    }
+
+    // Encrypt the totalExpense value
+    const encryptedTotalExpense = encrypt(totalExpense.toString());
+    updates.totalExpense = encryptedTotalExpense;
+
+    // Update activity expenses and totalExpense using MongoDB native collection method
+    // This bypasses Mongoose casting which would fail on encrypted string values
+    await Project.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(projectId) },
+      { $set: updates }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Subactivity deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete subactivity error:", error);
+    
+    // Handle validation errors from mongoose
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors,
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
   getAllProjects,
   getProjectById,
-  getActivityById
+  getActivityById,
+  updateProject,
+  deleteProject,
+  deleteActivity,
+  deleteSubActivity
 };
 

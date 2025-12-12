@@ -10,6 +10,7 @@ import AdminDashboard from "./pages/Admin/Dashboard"
 import FinanceDashboard from "./pages/Finance/Dashboard"
 import ProgramDashboard from "./pages/Program/Dashboard"
 import CreateProject from './pages/Program/CreateProject'
+import EditProject from './pages/Program/EditProject'
 import Profile from './pages/Auth/Profile'
 import MyProjects from './pages/Program/Projects'
 import ProjectDetails from './pages/Program/ProjectDetails'
@@ -39,6 +40,7 @@ const App = () => {
             <Route path='program/createproject' element={<CreateProject/>}/>
             <Route path='program/projects' element={<MyProjects/>}/>
             <Route path='program/projects/:id' element={<ProjectDetails/>}/>
+            <Route path='program/projects/:id/edit' element={<EditProject/>}/>
             <Route path='program/projects/:projectId/activities/:activityId' element={<ActivityDetails/>}/>
           </Route>
 

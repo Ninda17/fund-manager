@@ -12,6 +12,7 @@ const ProjectDetails = () => {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredActivities, setFilteredActivities] = useState([])
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -127,6 +128,32 @@ const ProjectDetails = () => {
     return statusStyles[status] || statusStyles['Not Started']
   }
 
+  const handleDeleteProject = async () => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${project?.title}"?\n\nThis action cannot be undone and will permanently delete all associated activities and sub-activities.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      setDeleting(true)
+      setError('')
+      const response = await axiosInstance.delete(API_PATHS.PROGRAM.DELETE_PROJECT(id))
+      if (response.data.success) {
+        alert('Project deleted successfully!')
+        // Navigate to projects list after successful deletion
+        navigate('/program/projects')
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to delete project. Please try again.'
+      setError(errorMessage)
+      alert(`Error: ${errorMessage}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -184,17 +211,58 @@ const ProjectDetails = () => {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-4 sm:mb-6">
-          <button
-            onClick={() => navigate('/program/projects')}
-            className="text-primary hover:text-primary-dark mb-3 sm:mb-4 flex items-center text-sm sm:text-base"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Projects
-          </button>
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <button
+              onClick={() => navigate('/program/projects')}
+              className="text-primary hover:text-primary-dark flex items-center text-sm sm:text-base"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Projects
+            </button>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => navigate(`/program/projects/${id}/edit`)}
+                className="px-3 sm:px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Project
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                disabled={deleting}
+                className="px-3 sm:px-4 py-2 text-sm font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Project
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">{project.title}</h1>
           <p className="text-gray-600 text-xs sm:text-sm lg:text-base break-words">Project ID: {project.projectId}</p>
         </div>
@@ -319,13 +387,14 @@ const ProjectDetails = () => {
           </div>
         </div>
 
+        {/* Activities Section */}
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
+        </div>
+
         {/* Activities Table */}
-        {project.activities && project.activities.length > 0 && (
+        {project.activities && project.activities.length > 0 ? (
           <>
-            {/* Activities Header */}
-            <div className="mb-4 sm:mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
-            </div>
 
             {/* Search Bar */}
             <div className="mb-6">
@@ -530,6 +599,25 @@ const ProjectDetails = () => {
               </div>
             </div>
           </>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-16 h-16 text-gray-400 mx-auto mb-4"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 13.5V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121.75 6v7.5V18a2.25 2.25 0 01-2.25 2.25H4.5A2.25 2.25 0 012.25 18v-4.5zm19.5-4.5v2.25m0 3.75v3.75M12 18h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zM12 12h.008v.008H12v-.008zM12 14.25h.008v.008H12v-.008zM12 16.5h.008v.008H12v-.008z"
+              />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No activities found</h3>
+            <p className="text-gray-500">This project has no activities</p>
+          </div>
         )}
       </div>
     </DashboardLayout>
