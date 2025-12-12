@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 const { encrypt, decrypt } = require("../utils/encryption");
 
 const subActivitySchema = new mongoose.Schema({
-  subactivityId: { type: String, required: true },
-  name: { type: String, required: true },
+  subactivityId: { type: String, required: false },
+  name: { type: String, required: false },
   budget: { 
     type: Number, 
-    required: true, 
+    required: false, 
     default: 0,
     min: [0, "Budget cannot be negative"]
   },
@@ -18,12 +18,12 @@ const subActivitySchema = new mongoose.Schema({
 });
 
 const activitySchema = new mongoose.Schema({
-  activityId: { type: String, required: true },
-  name: { type: String, required: true },
+  activityId: { type: String, required: false },
+  name: { type: String, required: false },
   description: { type: String, required: false },
   budget: { 
     type: Number, 
-    required: true, 
+    required: false, 
     default: 0,
     min: [0, "Budget cannot be negative"]
   },
@@ -38,15 +38,7 @@ const activitySchema = new mongoose.Schema({
     default: "Not Started",
     enum: ["Not Started", "In Progress", "Completed"]
   },
-  subActivities: {
-    type: [subActivitySchema],
-    validate: {
-      validator: function (value) {
-        return value.length > 0; // ❌ reject if empty
-      },
-      message: "Every activity must have at least one sub-activity."
-    }
-  }
+  subActivities: [subActivitySchema]
 });
 
 const projectSchema = new mongoose.Schema(
@@ -103,15 +95,7 @@ const projectSchema = new mongoose.Schema(
       default: "Not Started",
       enum: ["Not Started", "In Progress", "Completed"]
     },
-    activities: {
-      type: [activitySchema],
-      validate: {
-        validator: function (value) {
-          return value.length > 0; // ❌ reject if empty
-        },
-        message: "Project must have at least one activity."
-      }
-    }
+    activities: [activitySchema]
   },
   { timestamps: true }
 );

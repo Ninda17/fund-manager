@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import Input from '../../components/input/Input'
 import axiosInstance from '../../utils/axiosInstance'
 import { API_PATHS } from '../../utils/apiPaths'
-import { useNavigate } from 'react-router-dom'
 
-const CreateProject = () => {
+const EditProject = () => {
+  const { id } = useParams()
   const navigate = useNavigate()
   
   // Form state
@@ -19,34 +20,87 @@ const CreateProject = () => {
   const [amountDonated, setAmountDonated] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [projectType, setProjectType] = useState('Education')
+  const [projectStatus, setProjectStatus] = useState('Not Started')
   const [activities, setActivities] = useState([])
   
   // Finance users list
   const [financeUsers, setFinanceUsers] = useState([])
   const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(true)
   
-  // Form errors
+  // Loading and error states
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  
-  // Fetch finance users on mount
+
+  // Fetch project details and finance users on mount
   useEffect(() => {
-    const fetchFinanceUsers = async () => {
+    const fetchData = async () => {
       try {
+        setLoading(true)
+        setError('')
+        
+        // Fetch project details
+        const projectResponse = await axiosInstance.get(API_PATHS.PROGRAM.GET_PROJECT_BY_ID(id))
+        if (projectResponse.data.success) {
+          const project = projectResponse.data.data
+          
+          // Format dates for input fields (YYYY-MM-DD)
+          const formatDateForInput = (dateString) => {
+            if (!dateString) return ''
+            const date = new Date(dateString)
+            if (isNaN(date.getTime())) return ''
+            return date.toISOString().split('T')[0]
+          }
+          
+          setProjectId(project.projectId || '')
+          setTitle(project.title || '')
+          setDescription(project.description || '')
+          setStartDate(formatDateForInput(project.startDate))
+          setEndDate(formatDateForInput(project.endDate))
+          setFinancePersonnel(project.financePersonnel?._id || project.financePersonnel || '')
+          setDonorName(project.donorName || '')
+          setAmountDonated(project.amountDonated?.toString() || '')
+          setCurrency(project.currency || 'USD')
+          setProjectType(project.projectType || 'Education')
+          setProjectStatus(project.projectStatus || 'Not Started')
+          
+          // Set activities with proper structure
+          if (project.activities && Array.isArray(project.activities)) {
+            const formattedActivities = project.activities.map(activity => ({
+              activityId: activity.activityId || '',
+              name: activity.name || '',
+              description: activity.description || '',
+              budget: activity.budget?.toString() || '',
+              projectStatus: activity.projectStatus || 'Not Started',
+              subActivities: (activity.subActivities || []).map(sub => ({
+                subactivityId: sub.subactivityId || '',
+                name: sub.name || '',
+                budget: sub.budget?.toString() || ''
+              }))
+            }))
+            setActivities(formattedActivities)
+          }
+        }
+        
+        // Fetch finance users
         setLoadingFinanceUsers(true)
-        const response = await axiosInstance.get(API_PATHS.PROGRAM.FINANCE_PERSONNEL)
-        if (response.data.success) {
-          setFinanceUsers(response.data.data)
+        const financeResponse = await axiosInstance.get(API_PATHS.PROGRAM.FINANCE_PERSONNEL)
+        if (financeResponse.data.success) {
+          setFinanceUsers(financeResponse.data.data)
         }
       } catch (error) {
-        setError('Failed to load finance personnel. Please refresh the page.', error)
+        console.error('Error fetching data:', error)
+        setError(error.response?.data?.message || 'Failed to load project details. Please try again.')
       } finally {
+        setLoading(false)
         setLoadingFinanceUsers(false)
       }
     }
     
-    fetchFinanceUsers()
-  }, [])
+    if (id) {
+      fetchData()
+    }
+  }, [id])
   
   // Add new activity
   const addActivity = () => {
@@ -57,6 +111,7 @@ const CreateProject = () => {
         name: '',
         description: '',
         budget: '',
+        projectStatus: 'Not Started',
         subActivities: []
       }
     ])
@@ -167,7 +222,7 @@ const CreateProject = () => {
       return
     }
     
-    setLoading(true)
+    setSaving(true)
     
     try {
       // Prepare activities data
@@ -176,6 +231,7 @@ const CreateProject = () => {
         name: activity.name?.trim() || undefined,
         description: activity.description?.trim() || undefined,
         budget: activity.budget ? parseFloat(activity.budget) : 0,
+        projectStatus: activity.projectStatus || 'Not Started',
         subActivities: (activity.subActivities || []).map(sub => ({
           subactivityId: sub.subactivityId?.trim() || undefined,
           name: sub.name?.trim() || undefined,
@@ -194,24 +250,35 @@ const CreateProject = () => {
         amountDonated: parseFloat(amountDonated),
         currency,
         projectType,
+        projectStatus,
         activities: activitiesData
       }
       
-      const response = await axiosInstance.post(
-        API_PATHS.PROGRAM.CREATE_PROJECT,
+      const response = await axiosInstance.put(
+        API_PATHS.PROGRAM.UPDATE_PROJECT(id),
         projectData
       )
       
       if (response.data.success) {
-        // Navigate to dashboard or project list
-        navigate('/program/projects')
+        // Navigate back to project details
+        navigate(`/program/projects/${id}`)
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to create project. Please try again.'
+      const errorMessage = error.response?.data?.message || 'Failed to update project. Please try again.'
       setError(errorMessage)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
+  }
+  
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-lg">Loading project details...</div>
+        </div>
+      </DashboardLayout>
+    )
   }
   
   return (
@@ -219,8 +286,8 @@ const CreateProject = () => {
       <div className="max-w-4xl mx-auto p-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Create New Project</h1>
-          <p className="text-gray-600">Fill in the details to create a new project</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Edit Project</h1>
+          <p className="text-gray-600">Update project details</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
           
@@ -397,25 +464,45 @@ const CreateProject = () => {
               </div>
             </div>
             
-            {/* Project Type */}
+            {/* Project Type and Status */}
             <div className="mb-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Project Type *
-                </label>
-                <select
-                  value={projectType}
-                  onChange={(e) => {
-                    setProjectType(e.target.value)
-                    setError('')
-                  }}
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                >
-                  <option value="Education">Education</option>
-                  <option value="Welfare">Welfare</option>
-                  <option value="Youth">Youth</option>
-                  <option value="other">other</option>
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Project Type *
+                  </label>
+                  <select
+                    value={projectType}
+                    onChange={(e) => {
+                      setProjectType(e.target.value)
+                      setError('')
+                    }}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="Education">Education</option>
+                    <option value="Welfare">Welfare</option>
+                    <option value="Youth">Youth</option>
+                    <option value="other">other</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Project Status *
+                  </label>
+                  <select
+                    value={projectStatus}
+                    onChange={(e) => {
+                      setProjectStatus(e.target.value)
+                      setError('')
+                    }}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
               </div>
             </div>
             
@@ -477,7 +564,7 @@ const CreateProject = () => {
                     />
                   </div>
                   
-                  <div className="mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <Input
                       label="Activity Budget"
                       type="number"
@@ -487,6 +574,21 @@ const CreateProject = () => {
                       min="0"
                       step="0.01"
                     />
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Activity Status
+                      </label>
+                      <select
+                        value={activity.projectStatus || 'Not Started'}
+                        onChange={(e) => updateActivity(activityIndex, 'projectStatus', e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        <option value="Not Started">Not Started</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                      </select>
+                    </div>
                   </div>
                   
                   {/* Sub-Activities */}
@@ -559,19 +661,19 @@ const CreateProject = () => {
             <div className="flex justify-end space-x-4">
               <button
                 type="button"
-                onClick={() => navigate('/program/projects')}
+                onClick={() => navigate(`/program/projects/${id}`)}
                 className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading || !isFormValid()}
+                disabled={saving || !isFormValid()}
                 className={`px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-colors ${
-                  loading || !isFormValid() ? 'opacity-50 cursor-not-allowed' : ''
+                  saving || !isFormValid() ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {loading ? 'Creating...' : 'Create Project'}
+                {saving ? 'Updating...' : 'Update Project'}
               </button>
             </div>
           </form>
@@ -581,4 +683,5 @@ const CreateProject = () => {
   )
 }
 
-export default CreateProject
+export default EditProject
+
