@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
 export const API_PATHS = {
   // Auth endpoints
@@ -16,14 +17,16 @@ export const API_PATHS = {
   // Admin endpoints
   ADMIN: {
     USERS: `${API_BASE}/admin/users`,
+    USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
+    USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
   },
   // Program endpoints
   PROGRAM: {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
     GET_PROJECTS: `${API_BASE}/program/projects`,
     GET_PROJECT_BY_ID: (id) => `${API_BASE}/program/projects/${id}`,
-    GET_ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
+    GET_ACTIVITY_BY_ID: (projectId, activityId) =>
+      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },
 };
-
