@@ -13,6 +13,8 @@ const ActivityDetails = () => {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredSubActivities, setFilteredSubActivities] = useState([])
+  const [deleting, setDeleting] = useState(false)
+  const [deletingSubActivity, setDeletingSubActivity] = useState(null)
 
   useEffect(() => {
     if (projectId && activityId) {
@@ -116,6 +118,60 @@ const ActivityDetails = () => {
     return statusStyles[status] || statusStyles['Not Started']
   }
 
+  const handleDeleteActivity = async () => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${activity?.name}"?\n\nThis action cannot be undone and will permanently delete all associated sub-activities.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      setDeleting(true)
+      setError('')
+      const response = await axiosInstance.delete(API_PATHS.PROGRAM.DELETE_ACTIVITY(projectId, activityId))
+      if (response.data.success) {
+        alert('Activity deleted successfully!')
+        // Navigate back to project details after successful deletion
+        navigate(`/program/projects/${projectId}`)
+      }
+    } catch (error) {
+      console.error('Error deleting activity:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to delete activity. Please try again.'
+      setError(errorMessage)
+      alert(`Error: ${errorMessage}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteSubActivity = async (subActivity) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${subActivity.name}"?\n\nThis action cannot be undone.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      setDeletingSubActivity(subActivity._id)
+      setError('')
+      const response = await axiosInstance.delete(
+        API_PATHS.PROGRAM.DELETE_SUBACTIVITY(projectId, activityId, subActivity._id)
+      )
+      if (response.data.success) {
+        alert('Sub-activity deleted successfully!')
+        // Refresh activity details
+        fetchActivityDetails()
+      }
+    } catch (error) {
+      console.error('Error deleting sub-activity:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to delete sub-activity. Please try again.'
+      setError(errorMessage)
+      alert(`Error: ${errorMessage}`)
+    } finally {
+      setDeletingSubActivity(null)
+    }
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -176,18 +232,49 @@ const ActivityDetails = () => {
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
-          <button
-            onClick={() => navigate(`/program/projects/${projectId}`)}
-            className="text-primary hover:text-primary-dark mb-3 sm:mb-4 flex items-center text-sm sm:text-base"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Project
-          </button>
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <button
+              onClick={() => navigate(`/program/projects/${projectId}`)}
+              className="text-primary hover:text-primary-dark flex items-center text-sm sm:text-base"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Project
+            </button>
+            <button
+              onClick={handleDeleteActivity}
+              disabled={deleting}
+              className="px-3 sm:px-4 py-2 text-sm font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Activity
+                </>
+              )}
+            </button>
+          </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">{activity.name}</h1>
           <p className="text-gray-600 text-xs sm:text-sm lg:text-base break-words">Activity ID: {activity.activityId}</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -375,6 +462,9 @@ const ActivityDetails = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         UTILIZATION
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ACTIONS
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -410,12 +500,34 @@ const ActivityDetails = () => {
                                 </div>
                               </div>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteSubActivity(subActivity)
+                                }}
+                                disabled={deletingSubActivity === subActivity._id}
+                                className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                title="Delete sub-activity"
+                              >
+                                {deletingSubActivity === subActivity._id ? (
+                                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                ) : (
+                                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                )}
+                              </button>
+                            </td>
                           </tr>
                         )
                       })
                     ) : (
                       <tr>
-                        <td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">
+                        <td colSpan="6" className="px-6 py-8 text-center text-sm text-gray-500">
                           No sub-activities found matching "{searchQuery}"
                         </td>
                       </tr>
@@ -427,9 +539,9 @@ const ActivityDetails = () => {
               {/* Mobile/Tablet Card View */}
               <div className="lg:hidden divide-y divide-gray-200">
                 {filteredSubActivities.length > 0 ? (
-                  filteredSubActivities.map((subActivity, index) => {
-                    const subActivityUtilization = calculateSubActivityUtilization(subActivity)
-                    return (
+                    filteredSubActivities.map((subActivity, index) => {
+                        const subActivityUtilization = calculateSubActivityUtilization(subActivity)
+                        return (
                       <div key={index} className="p-4 sm:p-6">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -463,6 +575,26 @@ const ActivityDetails = () => {
                                 style={{ width: `${subActivityUtilization}%` }}
                               />
                             </div>
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-xs font-medium text-gray-500">ACTIONS</span>
+                            <button
+                              onClick={() => handleDeleteSubActivity(subActivity)}
+                              disabled={deletingSubActivity === subActivity._id}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title="Delete sub-activity"
+                            >
+                              {deletingSubActivity === subActivity._id ? (
+                                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
                         </div>
                       </div>

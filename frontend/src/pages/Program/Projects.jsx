@@ -34,72 +34,72 @@ const MyProjects = () => {
       return
     }
 
-      const query = searchQuery.toLowerCase().trim()
-      const filtered = allProjects.filter((project) => {
-        const projectId = (project.projectId || '').toLowerCase()
-        const title = (project.title || '').toLowerCase()
-        const financeName = (project.financePersonnel?.name || '').toLowerCase()
-        const financeEmail = (project.financePersonnel?.email || '').toLowerCase()
-        const amount = project.amountDonated?.toString() || ''
-        const currency = (project.currency || '').toLowerCase()
+    const query = searchQuery.toLowerCase().trim()
+    const filtered = allProjects.filter((project) => {
+      const projectId = (project.projectId || '').toLowerCase()
+      const title = (project.title || '').toLowerCase()
+      const financeName = (project.financePersonnel?.name || '').toLowerCase()
+      const financeEmail = (project.financePersonnel?.email || '').toLowerCase()
+      const amount = project.amountDonated?.toString() || ''
+      const currency = (project.currency || '').toLowerCase()
         const progressStatus = (project.projectStatus || 'Not Started').toLowerCase()
 
-        // Format dates for searching
-        let startDateFormatted = ''
-        let endDateFormatted = ''
-        let startDateYear = ''
-        let endDateYear = ''
-        let startDateMonth = ''
-        let endDateMonth = ''
-        let startDateDay = ''
-        let endDateDay = ''
+      // Format dates for searching
+      let startDateFormatted = ''
+      let endDateFormatted = ''
+      let startDateYear = ''
+      let endDateYear = ''
+      let startDateMonth = ''
+      let endDateMonth = ''
+      let startDateDay = ''
+      let endDateDay = ''
 
-        if (project.startDate) {
-          try {
-            const startDate = new Date(project.startDate)
-            if (!isNaN(startDate.getTime())) {
-              startDateFormatted = formatDate(project.startDate).toLowerCase()
-              startDateYear = startDate.getFullYear().toString()
-              startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
-              startDateDay = startDate.getDate().toString()
-            }
-          } catch (e) {
-            e
+      if (project.startDate) {
+        try {
+          const startDate = new Date(project.startDate)
+          if (!isNaN(startDate.getTime())) {
+            startDateFormatted = formatDate(project.startDate).toLowerCase()
+            startDateYear = startDate.getFullYear().toString()
+            startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+            startDateDay = startDate.getDate().toString()
           }
+        } catch (e) {
+          e
         }
+      }
 
-        if (project.endDate) {
-          try {
-            const endDate = new Date(project.endDate)
-            if (!isNaN(endDate.getTime())) {
-              endDateFormatted = formatDate(project.endDate).toLowerCase()
-              endDateYear = endDate.getFullYear().toString()
-              endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
-              endDateDay = endDate.getDate().toString()
-            }
-          } catch (e) {
-            e
+      if (project.endDate) {
+        try {
+          const endDate = new Date(project.endDate)
+          if (!isNaN(endDate.getTime())) {
+            endDateFormatted = formatDate(project.endDate).toLowerCase()
+            endDateYear = endDate.getFullYear().toString()
+            endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+            endDateDay = endDate.getDate().toString()
           }
+        } catch (e) {
+          e
         }
+      }
 
-        return (
-          projectId.includes(query) ||
-          title.includes(query) ||
-          financeName.includes(query) ||
-          financeEmail.includes(query) ||
-          amount.includes(query) ||
-          currency.includes(query) ||
+      return (
+        projectId.includes(query) ||
+        title.includes(query) ||
+        financeName.includes(query) ||
+        financeEmail.includes(query) ||
+        amount.includes(query) ||
+        currency.includes(query) ||
           progressStatus.includes(query) ||
-          startDateFormatted.includes(query) ||
-          endDateFormatted.includes(query) ||
-          startDateYear.includes(query) ||
-          endDateYear.includes(query) ||
-          startDateMonth.includes(query) ||
-          endDateMonth.includes(query) ||
-          startDateDay.includes(query) ||
-          endDateDay.includes(query)
-        )
-      })
+        startDateFormatted.includes(query) ||
+        endDateFormatted.includes(query) ||
+        startDateYear.includes(query) ||
+        endDateYear.includes(query) ||
+        startDateMonth.includes(query) ||
+        endDateMonth.includes(query) ||
+        startDateDay.includes(query) ||
+        endDateDay.includes(query)
+      )
+    })
 
     setProjects(filtered)
   }, [searchQuery, allProjects])

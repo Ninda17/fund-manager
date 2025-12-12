@@ -21,6 +21,28 @@ import ProjectDetails from "./pages/Program/ProjectDetails";
 import ActivityDetails from "./pages/Program/ActivityDetails";
 import ManageUsers from "./pages/Admin/ManageUsers";
 import UserDetails from "./pages/Admin/UserDetails";
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { UserProvider } from "./context/userContext";
+import Login from "./pages/Auth/Login";
+import Signup from "./pages/Auth/Signup";
+import ForgetPassword from "./pages/Auth/ForgetPassword";
+import VerifyEmail from "./pages/Auth/VerifyEmail";
+import PrivateRoute from "./routes/PrivateRoute";
+import AdminDashboard from "./pages/Admin/Dashboard";
+import FinanceDashboard from "./pages/Finance/Dashboard";
+import ProgramDashboard from "./pages/Program/Dashboard";
+import CreateProject from "./pages/Program/CreateProject";
+import EditProject from "./pages/Program/EditProject";
+import Profile from "./pages/Auth/Profile";
+import MyProjects from "./pages/Program/Projects";
+import ProjectDetails from "./pages/Program/ProjectDetails";
+import ActivityDetails from "./pages/Program/ActivityDetails";
 
 const App = () => {
   return (
@@ -48,6 +70,17 @@ const App = () => {
             <Route path="program/createproject" element={<CreateProject />} />
             <Route path="program/projects" element={<MyProjects />} />
             <Route path="program/projects/:id" element={<ProjectDetails />} />
+            <Route
+              path="program/projects/:projectId/activities/:activityId"
+              element={<ActivityDetails />}
+            />
+          </Route>
+          <Route element={<PrivateRoute allowedRoles={["program"]} />}>
+            <Route path="program/dashboard" element={<ProgramDashboard />} />
+            <Route path="program/createproject" element={<CreateProject />} />
+            <Route path="program/projects" element={<MyProjects />} />
+            <Route path="program/projects/:id" element={<ProjectDetails />} />
+            <Route path="program/projects/:id/edit" element={<EditProject />} />
             <Route
               path="program/projects/:projectId/activities/:activityId"
               element={<ActivityDetails />}
