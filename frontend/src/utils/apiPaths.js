@@ -25,16 +25,11 @@ export const API_PATHS = {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
     GET_PROJECTS: `${API_BASE}/program/projects`,
     GET_PROJECT_BY_ID: (id) => `${API_BASE}/program/projects/${id}`,
-    GET_ACTIVITY_BY_ID: (projectId, activityId) =>
-      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    GET_ACTIVITY_BY_ID: (projectId, activityId) =>
-      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
+    GET_ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
     UPDATE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
     DELETE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
-    DELETE_ACTIVITY: (projectId, activityId) =>
-      `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>
-      `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
+    DELETE_ACTIVITY: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
+    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>`${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },
 };
