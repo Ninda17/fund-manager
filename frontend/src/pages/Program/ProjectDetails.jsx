@@ -32,7 +32,9 @@ const ProjectDetails = () => {
       return
     }
 
-    const query = searchQuery.toLowerCase().trim()
+    // Split search query into individual terms (support multiple search terms)
+    const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0)
+    
     const filtered = project.activities.filter((activity) => {
       const activityId = (activity.activityId || '').toLowerCase()
       const name = (activity.name || '').toLowerCase()
@@ -42,17 +44,25 @@ const ProjectDetails = () => {
       const expenseRaw = (activity.expense?.toString() || '').toLowerCase()
       const utilization = calculateActivityUtilization(activity).toFixed(1)
       const progressStatus = (activity.projectStatus || 'Not Started').toLowerCase()
+      const budgetStatus = getActivityBudgetStatus(activity).toLowerCase()
+      const budgetStatusFormatted = formatBudgetStatus(budgetStatus).toLowerCase()
 
-      return (
-        activityId.includes(query) ||
-        name.includes(query) ||
-        budgetFormatted.includes(query) ||
-        expenseFormatted.includes(query) ||
-        budgetRaw.includes(query) ||
-        expenseRaw.includes(query) ||
-        utilization.includes(query) ||
-        progressStatus.includes(query)
-      )
+      // Combine all searchable fields into a single string
+      const searchableText = [
+        activityId,
+        name,
+        budgetFormatted,
+        expenseFormatted,
+        budgetRaw,
+        expenseRaw,
+        utilization,
+        progressStatus,
+        budgetStatus,
+        budgetStatusFormatted
+      ].join(' ')
+
+      // Check if ALL search terms match (AND logic)
+      return searchTerms.every(term => searchableText.includes(term))
     })
 
     setFilteredActivities(filtered)
@@ -126,6 +136,34 @@ const ProjectDetails = () => {
       'Completed': 'bg-green-100 text-green-700 border-green-200'
     }
     return statusStyles[status] || statusStyles['Not Started']
+  }
+
+  const getActivityBudgetStatus = (activity) => {
+    if (!activity || activity.budget === null || activity.budget === undefined) return 'balanced'
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : activity.budget
+    const expense = activity.expense || 0
+    
+    if (expense < budget) return 'underspent'
+    if (expense > budget) return 'overspent'
+    return 'balanced'
+  }
+
+  const getBudgetStatusBadgeStyle = (status) => {
+    const statusStyles = {
+      'underspent': 'bg-green-100 text-green-700 border-green-200',
+      'overspent': 'bg-red-100 text-red-700 border-red-200',
+      'balanced': 'bg-blue-100 text-blue-700 border-blue-200'
+    }
+    return statusStyles[status] || statusStyles['balanced']
+  }
+
+  const formatBudgetStatus = (status) => {
+    const statusMap = {
+      'underspent': 'Underspent',
+      'overspent': 'Overspent',
+      'balanced': 'Balanced'
+    }
+    return statusMap[status] || 'Balanced'
   }
 
   const handleDeleteProject = async () => {
@@ -230,15 +268,15 @@ const ProjectDetails = () => {
               Back to Projects
             </button>
             <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => navigate(`/program/projects/${id}/edit`)}
+            <button
+              onClick={() => navigate(`/program/projects/${id}/edit`)}
                 className="px-3 sm:px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit Project
-              </button>
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Project
+            </button>
               <button
                 onClick={handleDeleteProject}
                 disabled={deleting}
@@ -388,9 +426,9 @@ const ProjectDetails = () => {
         </div>
 
         {/* Activities Section */}
-        <div className="mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
-        </div>
+            <div className="mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
+            </div>
 
         {/* Activities Table */}
         {project.activities && project.activities.length > 0 ? (
@@ -415,7 +453,7 @@ const ProjectDetails = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search by activity ID, name, budget, expense, utilization, progress status..."
+                  placeholder="Search by activity ID, name, budget, expense, utilization, progress status, budget status..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
@@ -477,6 +515,9 @@ const ProjectDetails = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         PROGRESS
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        STATUS
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -484,6 +525,7 @@ const ProjectDetails = () => {
                       filteredActivities.map((activity, index) => {
                     const activityUtilization = calculateActivityUtilization(activity)
                     const progressStatus = activity.projectStatus || 'Not Started'
+                    const budgetStatus = getActivityBudgetStatus(activity)
                     return (
                       <tr 
                         key={index} 
@@ -522,12 +564,17 @@ const ProjectDetails = () => {
                             {progressStatus}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                            {formatBudgetStatus(budgetStatus)}
+                          </span>
+                        </td>
                       </tr>
                       )
                     })
                     ) : (
                       <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-sm text-gray-500">
+                        <td colSpan="7" className="px-6 py-8 text-center text-sm text-gray-500">
                           No activities found matching "{searchQuery}"
                         </td>
                       </tr>
@@ -542,6 +589,7 @@ const ProjectDetails = () => {
                   filteredActivities.map((activity, index) => {
                 const activityUtilization = calculateActivityUtilization(activity)
                 const progressStatus = activity.projectStatus || 'Not Started'
+                const budgetStatus = getActivityBudgetStatus(activity)
                 return (
                   <div 
                     key={index} 
@@ -585,6 +633,12 @@ const ProjectDetails = () => {
                         <span className="text-xs font-medium text-gray-500">PROGRESS</span>
                         <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
                           {progressStatus}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-500">STATUS</span>
+                        <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                          {formatBudgetStatus(budgetStatus)}
                         </span>
                       </div>
                     </div>

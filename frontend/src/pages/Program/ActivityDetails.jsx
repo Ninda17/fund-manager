@@ -34,7 +34,9 @@ const ActivityDetails = () => {
       return
     }
 
-    const query = searchQuery.toLowerCase().trim()
+    // Split search query into individual terms (support multiple search terms)
+    const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0)
+    
     const filtered = activity.subActivities.filter((subActivity) => {
       const subactivityId = (subActivity.subactivityId || '').toLowerCase()
       const name = (subActivity.name || '').toLowerCase()
@@ -43,16 +45,24 @@ const ActivityDetails = () => {
       const budgetRaw = (subActivity.budget?.toString() || '').toLowerCase()
       const expenseRaw = (subActivity.expense?.toString() || '').toLowerCase()
       const utilization = calculateSubActivityUtilization(subActivity).toFixed(1)
+      const budgetStatus = getSubActivityBudgetStatus(subActivity).toLowerCase()
+      const budgetStatusFormatted = formatBudgetStatus(budgetStatus).toLowerCase()
 
-      return (
-        subactivityId.includes(query) ||
-        name.includes(query) ||
-        budgetFormatted.includes(query) ||
-        expenseFormatted.includes(query) ||
-        budgetRaw.includes(query) ||
-        expenseRaw.includes(query) ||
-        utilization.includes(query)
-      )
+      // Combine all searchable fields into a single string
+      const searchableText = [
+        subactivityId,
+        name,
+        budgetFormatted,
+        expenseFormatted,
+        budgetRaw,
+        expenseRaw,
+        utilization,
+        budgetStatus,
+        budgetStatusFormatted
+      ].join(' ')
+
+      // Check if ALL search terms match (AND logic)
+      return searchTerms.every(term => searchableText.includes(term))
     })
 
     setFilteredSubActivities(filtered)
@@ -116,6 +126,34 @@ const ActivityDetails = () => {
       'Completed': 'bg-green-100 text-green-700 border-green-200'
     }
     return statusStyles[status] || statusStyles['Not Started']
+  }
+
+  const getSubActivityBudgetStatus = (subActivity) => {
+    if (!subActivity || subActivity.budget === null || subActivity.budget === undefined) return 'balanced'
+    const budget = typeof subActivity.budget === 'string' ? parseFloat(subActivity.budget) : subActivity.budget
+    const expense = subActivity.expense || 0
+    
+    if (expense < budget) return 'underspent'
+    if (expense > budget) return 'overspent'
+    return 'balanced'
+  }
+
+  const getBudgetStatusBadgeStyle = (status) => {
+    const statusStyles = {
+      'underspent': 'bg-green-100 text-green-700 border-green-200',
+      'overspent': 'bg-red-100 text-red-700 border-red-200',
+      'balanced': 'bg-blue-100 text-blue-700 border-blue-200'
+    }
+    return statusStyles[status] || statusStyles['balanced']
+  }
+
+  const formatBudgetStatus = (status) => {
+    const statusMap = {
+      'underspent': 'Underspent',
+      'overspent': 'Overspent',
+      'balanced': 'Balanced'
+    }
+    return statusMap[status] || 'Balanced'
   }
 
   const handleDeleteActivity = async () => {
@@ -403,7 +441,7 @@ const ActivityDetails = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search by sub-activity ID, name, budget, expense, utilization..."
+                  placeholder="Search by sub-activity ID, name, budget, expense, utilization, budget status..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
@@ -463,6 +501,9 @@ const ActivityDetails = () => {
                         UTILIZATION
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        STATUS
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         ACTIONS
                       </th>
                     </tr>
@@ -471,6 +512,7 @@ const ActivityDetails = () => {
                     {filteredSubActivities.length > 0 ? (
                       filteredSubActivities.map((subActivity, index) => {
                         const subActivityUtilization = calculateSubActivityUtilization(subActivity)
+                        const budgetStatus = getSubActivityBudgetStatus(subActivity)
                         return (
                           <tr key={index} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -501,6 +543,11 @@ const ActivityDetails = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                                {formatBudgetStatus(budgetStatus)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -527,7 +574,7 @@ const ActivityDetails = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-sm text-gray-500">
+                        <td colSpan="7" className="px-6 py-8 text-center text-sm text-gray-500">
                           No sub-activities found matching "{searchQuery}"
                         </td>
                       </tr>
@@ -575,6 +622,12 @@ const ActivityDetails = () => {
                                 style={{ width: `${subActivityUtilization}%` }}
                               />
                             </div>
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-xs font-medium text-gray-500">STATUS</span>
+                            <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(getSubActivityBudgetStatus(subActivity))}`}>
+                              {formatBudgetStatus(getSubActivityBudgetStatus(subActivity))}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between pt-2">
                             <span className="text-xs font-medium text-gray-500">ACTIONS</span>
