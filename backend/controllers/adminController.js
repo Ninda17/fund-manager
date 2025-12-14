@@ -1,13 +1,41 @@
 const User = require("../models/userModel");
+const Project = require("../models/projectModel")
 
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
 
+    // Get project count for each user
+    const usersWithProjectCount = await Promise.all(
+      users.map(async (user) => {
+        // Count projects where user is either programPersonnel or financePersonnel
+        const programProjectCount = await Project.countDocuments({
+          programPersonnel: user._id,
+        });
+
+        const financeProjectCount = await Project.countDocuments({
+          financePersonnel: user._id,
+        });
+
+        // Total projects associated with this user
+        const totalProjectCount = programProjectCount + financeProjectCount;
+
+        // Convert user to plain object and add projectCount
+        const userObject = user.toObject();
+        return {
+          ...userObject,
+          projectCount: totalProjectCount,
+          // You can also include breakdown if needed:
+          programProjectCount,
+          financeProjectCount,
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      count: users.length,
-      data: users,
+      count: usersWithProjectCount.length,
+      data: usersWithProjectCount,
     });
   } catch (error) {
     console.error("Get all users error:", error);
