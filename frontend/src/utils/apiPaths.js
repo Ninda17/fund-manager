@@ -31,5 +31,16 @@ export const API_PATHS = {
     DELETE_ACTIVITY: (projectId, activityId) => `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
     DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>`${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
+    // Reallocation endpoints
+    CREATE_REALLOCATION_REQUEST: `${API_BASE}/program/reallocation-requests`,
+    GET_REALLOCATION_REQUESTS: `${API_BASE}/program/reallocation-requests`,
+    GET_REALLOCATION_REQUEST_BY_ID: (id) => `${API_BASE}/program/reallocation-requests/${id}`,
+  },
+  // Finance endpoints
+  FINANCE: {
+    GET_REALLOCATION_REQUESTS: `${API_BASE}/finance/reallocation-requests`,
+    GET_REALLOCATION_REQUEST_BY_ID: (id) => `${API_BASE}/finance/reallocation-requests/${id}`,
+    APPROVE_REALLOCATION_REQUEST: (id) => `${API_BASE}/finance/reallocation-requests/${id}/approve`,
+    REJECT_REALLOCATION_REQUEST: (id) => `${API_BASE}/finance/reallocation-requests/${id}/reject`,
   },
 };

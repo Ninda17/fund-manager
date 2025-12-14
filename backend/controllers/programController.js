@@ -1,5 +1,7 @@
 const Project = require("../models/projectModel");
 const User = require("../models/userModel");
+const ReallocationRequest = require("../models/reallocationRequestModel");
+const mongoose = require("mongoose");
 
 const createProject = async (req, res) => {
   try {
@@ -1291,6 +1293,480 @@ const deleteSubActivity = async (req, res) => {
   }
 };
 
+// ==================== REALLOCATION REQUEST FUNCTIONS ====================
+
+const createReallocationRequest = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      requestType,
+      sourceProjectId,
+      destinationProjectId,
+      sourceActivityId,
+      destinationActivityId,
+      sourceSubactivityId,
+      destinationSubactivityId,
+      projectId,
+      amount,
+      reason,
+    } = req.body;
+
+    // Validate required fields
+    if (!requestType || !amount || !reason) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Please provide requestType, amount, and reason",
+      });
+    }
+
+    // Validate requestType
+    const validRequestTypes = ["project_to_project", "activity_to_activity", "subactivity_to_subactivity"];
+    if (!validRequestTypes.includes(requestType)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `requestType must be one of: ${validRequestTypes.join(", ")}`,
+      });
+    }
+
+    // Validate amount
+    const reallocationAmount = parseFloat(amount);
+    if (isNaN(reallocationAmount) || reallocationAmount <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive number",
+      });
+    }
+
+    const { decrypt } = require("../utils/encryption");
+    let sourceCurrency, destinationCurrency;
+    let sourceProject, destinationProject;
+    let projectForActivity;
+
+    // Handle project-to-project reallocation
+    if (requestType === "project_to_project") {
+      if (!sourceProjectId || !destinationProjectId) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "sourceProjectId and destinationProjectId are required for project-to-project reallocation",
+        });
+      }
+
+      // Validate ObjectIds
+      if (!sourceProjectId.match(/^[0-9a-fA-F]{24}$/) || !destinationProjectId.match(/^[0-9a-fA-F]{24}$/)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
+      }
+
+      // Get source project (must belong to requesting user)
+      sourceProject = await Project.findOne({
+        _id: sourceProjectId,
+        programPersonnel: req.user.id,
+      }).lean();
+
+      if (!sourceProject) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Source project not found or you do not have access",
+        });
+      }
+
+      // Get destination project
+      destinationProject = await Project.findById(destinationProjectId).lean();
+
+      if (!destinationProject) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Destination project not found",
+        });
+      }
+
+      // Decrypt currencies
+      sourceCurrency = sourceProject.currency && typeof sourceProject.currency === 'string' && sourceProject.currency.includes(':')
+        ? decrypt(sourceProject.currency)
+        : sourceProject.currency;
+
+      destinationCurrency = destinationProject.currency && typeof destinationProject.currency === 'string' && destinationProject.currency.includes(':')
+        ? decrypt(destinationProject.currency)
+        : destinationProject.currency;
+
+      // Decrypt amountDonated to check balance
+      let sourceAmountDonated = 0;
+      if (sourceProject.amountDonated) {
+        if (typeof sourceProject.amountDonated === 'string' && sourceProject.amountDonated.includes(':')) {
+          sourceAmountDonated = parseFloat(decrypt(sourceProject.amountDonated)) || 0;
+        } else {
+          sourceAmountDonated = parseFloat(sourceProject.amountDonated) || 0;
+        }
+      }
+
+      // Check if source has sufficient balance
+      if (sourceAmountDonated < reallocationAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient balance. Source project has ${sourceAmountDonated} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
+        });
+      }
+    }
+
+    // Handle activity-to-activity reallocation
+    if (requestType === "activity_to_activity") {
+      if (!sourceActivityId || !destinationActivityId || !projectId) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "sourceActivityId, destinationActivityId, and projectId are required for activity-to-activity reallocation",
+        });
+      }
+
+      // Validate projectId
+      if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
+      }
+
+      // Get project (must belong to requesting user)
+      projectForActivity = await Project.findOne({
+        _id: projectId,
+        programPersonnel: req.user.id,
+      }).lean();
+
+      if (!projectForActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Project not found or you do not have access",
+        });
+      }
+
+      // Decrypt currency
+      sourceCurrency = projectForActivity.currency && typeof projectForActivity.currency === 'string' && projectForActivity.currency.includes(':')
+        ? decrypt(projectForActivity.currency)
+        : projectForActivity.currency;
+      destinationCurrency = sourceCurrency; // Same project, same currency
+
+      // Find source and destination activities
+      const sourceActivity = projectForActivity.activities?.find(
+        (act) => act._id?.toString() === sourceActivityId || act.activityId === sourceActivityId
+      );
+      const destinationActivity = projectForActivity.activities?.find(
+        (act) => act._id?.toString() === destinationActivityId || act.activityId === destinationActivityId
+      );
+
+      if (!sourceActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Source activity not found",
+        });
+      }
+
+      if (!destinationActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Destination activity not found",
+        });
+      }
+
+      // Validate both activities are in the same project
+      if (sourceActivity._id.toString() === destinationActivity._id.toString()) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Source and destination activities cannot be the same",
+        });
+      }
+
+      // Decrypt source activity budget
+      let sourceBudget = 0;
+      if (sourceActivity.budget !== undefined && sourceActivity.budget !== null) {
+        if (typeof sourceActivity.budget === 'string' && sourceActivity.budget.includes(':')) {
+          sourceBudget = parseFloat(decrypt(sourceActivity.budget)) || 0;
+        } else {
+          sourceBudget = parseFloat(sourceActivity.budget) || 0;
+        }
+      }
+
+      // Check if source has sufficient balance
+      if (sourceBudget < reallocationAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient balance. Source activity has ${sourceBudget} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
+        });
+      }
+    }
+
+    // Handle subactivity-to-subactivity reallocation
+    if (requestType === "subactivity_to_subactivity") {
+      if (!sourceSubactivityId || !destinationSubactivityId || !sourceActivityId || !destinationActivityId || !projectId) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "sourceSubactivityId, destinationSubactivityId, sourceActivityId, destinationActivityId, and projectId are required for subactivity-to-subactivity reallocation",
+        });
+      }
+
+      // Validate projectId
+      if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
+      }
+
+      // Get project (must belong to requesting user)
+      projectForActivity = await Project.findOne({
+        _id: projectId,
+        programPersonnel: req.user.id,
+      }).lean();
+
+      if (!projectForActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Project not found or you do not have access",
+        });
+      }
+
+      // Decrypt currency
+      sourceCurrency = projectForActivity.currency && typeof projectForActivity.currency === 'string' && projectForActivity.currency.includes(':')
+        ? decrypt(projectForActivity.currency)
+        : projectForActivity.currency;
+      destinationCurrency = sourceCurrency; // Same project, same currency
+
+      // Find source and destination activities
+      const sourceActivity = projectForActivity.activities?.find(
+        (act) => act._id?.toString() === sourceActivityId || act.activityId === sourceActivityId
+      );
+      const destinationActivity = projectForActivity.activities?.find(
+        (act) => act._id?.toString() === destinationActivityId || act.activityId === destinationActivityId
+      );
+
+      if (!sourceActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Source activity not found",
+        });
+      }
+
+      if (!destinationActivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Destination activity not found",
+        });
+      }
+
+      // Validate both subactivities are in the same activity
+      if (sourceActivity._id.toString() !== destinationActivity._id.toString()) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Both subactivities must be in the same activity",
+        });
+      }
+
+      // Find source and destination subactivities
+      const sourceSubactivity = sourceActivity.subActivities?.find(
+        (subAct) => subAct._id?.toString() === sourceSubactivityId || subAct.subactivityId === sourceSubactivityId
+      );
+      const destinationSubactivity = destinationActivity.subActivities?.find(
+        (subAct) => subAct._id?.toString() === destinationSubactivityId || subAct.subactivityId === destinationSubactivityId
+      );
+
+      if (!sourceSubactivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Source subactivity not found",
+        });
+      }
+
+      if (!destinationSubactivity) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "Destination subactivity not found",
+        });
+      }
+
+      // Validate source and destination are different
+      if (sourceSubactivity._id.toString() === destinationSubactivity._id.toString()) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Source and destination subactivities cannot be the same",
+        });
+      }
+
+      // Decrypt source subactivity budget
+      let sourceBudget = 0;
+      if (sourceSubactivity.budget !== undefined && sourceSubactivity.budget !== null) {
+        if (typeof sourceSubactivity.budget === 'string' && sourceSubactivity.budget.includes(':')) {
+          sourceBudget = parseFloat(decrypt(sourceSubactivity.budget)) || 0;
+        } else {
+          sourceBudget = parseFloat(sourceSubactivity.budget) || 0;
+        }
+      }
+
+      // Check if source has sufficient balance
+      if (sourceBudget < reallocationAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient balance. Source subactivity has ${sourceBudget} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
+        });
+      }
+    }
+
+    // Create reallocation request
+    const requestData = {
+      requestedBy: req.user.id,
+      requestType,
+      amount: reallocationAmount,
+      sourceCurrency,
+      destinationCurrency,
+      reason: reason.trim(),
+      status: "pending",
+    };
+
+    if (requestType === "project_to_project") {
+      requestData.sourceProjectId = sourceProjectId;
+      requestData.destinationProjectId = destinationProjectId;
+    } else {
+      requestData.projectId = projectId;
+      requestData.sourceActivityId = sourceActivityId;
+      requestData.destinationActivityId = destinationActivityId;
+      if (requestType === "subactivity_to_subactivity") {
+        requestData.sourceSubactivityId = sourceSubactivityId;
+        requestData.destinationSubactivityId = destinationSubactivityId;
+      }
+    }
+
+    const reallocationRequest = await ReallocationRequest.create([requestData], { session });
+
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      message: "Reallocation request created successfully",
+      data: {
+        ...reallocationRequest[0].toObject(),
+        requiresExchangeRate: sourceCurrency !== destinationCurrency,
+      },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Create reallocation request error:", error);
+
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+const getAllReallocationRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const query = { requestedBy: req.user.id };
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      query.status = status;
+    }
+
+    const requests = await ReallocationRequest.find(query)
+      .populate("requestedBy", "name email")
+      .populate("sourceProjectId", "projectId title")
+      .populate("destinationProjectId", "projectId title")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      data: requests,
+    });
+  } catch (error) {
+    console.error("Get all reallocation requests error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const getReallocationRequestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request ID format",
+      });
+    }
+
+    const request = await ReallocationRequest.findOne({
+      _id: id,
+      requestedBy: req.user.id,
+    })
+      .populate("requestedBy", "name email")
+      .populate("sourceProjectId", "projectId title")
+      .populate("destinationProjectId", "projectId title")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email");
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Reallocation request not found or you do not have access",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    console.error("Get reallocation request by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
@@ -1300,6 +1776,9 @@ module.exports = {
   updateProject,
   deleteProject,
   deleteActivity,
-  deleteSubActivity
+  deleteSubActivity,
+  createReallocationRequest,
+  getAllReallocationRequests,
+  getReallocationRequestById,
 };
 
