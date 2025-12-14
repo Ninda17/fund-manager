@@ -22,6 +22,7 @@ import ProjectDetails from "./pages/Program/ProjectDetails";
 import ActivityDetails from "./pages/Program/ActivityDetails";
 import ManageUsers from "./pages/Admin/ManageUsers";
 import UserDetail from "./pages/Admin/UserDetails";
+import AllProjects from "./pages/Admin/AllProjects";
 
 const App = () => {
   return (
@@ -38,6 +39,7 @@ const App = () => {
             <Route path="admin/dashboard" element={<AdminDashboard />} />
             <Route path="admin/manage-user" element={<ManageUsers />} />
             <Route path="admin/users/:id" element={<UserDetail />} />
+            <Route path="admin/allprojects" element={<AllProjects />} />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["finance"]} />}>

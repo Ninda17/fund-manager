@@ -19,6 +19,7 @@ export const API_PATHS = {
     USERS: `${API_BASE}/admin/users`,
     USERS_DETAIL: (id) => `${API_BASE}/admin/users/${id}`,
     USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
+    // PROJECTS:`${API_BASE}/admin/allprojects`,
   },
   // Program endpoints
   PROGRAM: {
@@ -33,7 +34,7 @@ export const API_PATHS = {
     DELETE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
     DELETE_ACTIVITY: (projectId, activityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>
+    DELETE_SUBACTIVITY: (projectId, activityId, subaivityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
   },

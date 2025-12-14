@@ -31,7 +31,7 @@ const ManageUsers = () => {
     getUsers();
   }, []);
 
-  // Search filter
+  // Search filter - updated to include project count
   useEffect(() => {
     if (!searchQuery.trim()) {
       setUsers(allUsers);
@@ -43,7 +43,8 @@ const ManageUsers = () => {
         (user.name || "").toLowerCase().includes(query) ||
         (user.email || "").toLowerCase().includes(query) ||
         (user.role || "").toLowerCase().includes(query) ||
-        (user.isApproved || "pending").toLowerCase().includes(query)
+        (user.isApproved || "pending").toLowerCase().includes(query) ||
+        (user.projectCount?.toString() || "0").includes(query)
       );
     });
     setUsers(filtered);
@@ -52,6 +53,7 @@ const ManageUsers = () => {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Manage Users
@@ -61,15 +63,66 @@ const ManageUsers = () => {
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by name, email, role, or status..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full sm:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
-          />
+        {/* Full-width Search Bar */}
+        <div className="mb-6 w-full">
+          <div className="relative w-full">
+            {/* Search Icon */}
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg
+                className="h-5 w-5 text-gray-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+
+            {/* Input */}
+            <input
+              type="text"
+              placeholder="Search by name, email, role, status, or project count..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
+            />
+
+            {/* Clear Button */}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <svg
+                  className="h-5 w-5 text-gray-400 hover:text-gray-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Search Result Info */}
+          {searchQuery && (
+            <p className="mt-2 text-sm text-gray-600">
+              {users.length === 0
+                ? `No users found matching "${searchQuery}"`
+                : `Found ${users.length} ${
+                    users.length === 1 ? "user" : "users"
+                  } matching "${searchQuery}"`}
+            </p>
+          )}
         </div>
 
         {/* Loading */}
@@ -105,6 +158,9 @@ const ManageUsers = () => {
                         Role
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Projects
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
                     </tr>
@@ -129,6 +185,11 @@ const ManageUsers = () => {
                         <td className="px-6 py-4 whitespace-nowrap capitalize">
                           <span className="text-sm font-medium text-gray-900">
                             {user.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-900 rounded-full text-sm font-semibold">
+                            {user.projectCount || 0}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap capitalize">
@@ -178,6 +239,12 @@ const ManageUsers = () => {
                         {user.role}
                       </span>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">Projects</span>
+                      <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-900 rounded-full text-sm font-semibold">
+                        {user.projectCount || 0}
+                      </span>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Status</span>
                       <span
@@ -199,7 +266,7 @@ const ManageUsers = () => {
           </div>
         )}
 
-        {/* No users */}
+        {/* No Users */}
         {!loading && !error && users.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <h3 className="text-lg font-medium text-gray-900 mb-2">

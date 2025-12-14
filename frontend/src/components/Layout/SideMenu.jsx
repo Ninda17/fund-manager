@@ -79,6 +79,11 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       path: "/admin/manage-user",
       icon: dashboardIcon,
     },
+    {
+      name: "All projects",
+      path: "/admin/allprojects",
+      icon: dashboardIcon,
+    },
     // Add more admin menu items here as needed
   ];
 
