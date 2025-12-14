@@ -34,15 +34,20 @@ const MyProjects = () => {
       return
     }
 
-    const query = searchQuery.toLowerCase().trim()
+    // Split search query into individual terms (support multiple search terms)
+    const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/).filter(term => term.length > 0)
+    
     const filtered = allProjects.filter((project) => {
+      // Build searchable text for this project
       const projectId = (project.projectId || '').toLowerCase()
       const title = (project.title || '').toLowerCase()
       const financeName = (project.financePersonnel?.name || '').toLowerCase()
       const financeEmail = (project.financePersonnel?.email || '').toLowerCase()
       const amount = project.amountDonated?.toString() || ''
       const currency = (project.currency || '').toLowerCase()
-        const progressStatus = (project.projectStatus || 'Not Started').toLowerCase()
+      const progressStatus = (project.projectStatus || 'Not Started').toLowerCase()
+      const budgetStatus = getBudgetStatus(project).toLowerCase()
+      const budgetStatusFormatted = formatBudgetStatus(budgetStatus).toLowerCase()
 
       // Format dates for searching
       let startDateFormatted = ''
@@ -82,23 +87,29 @@ const MyProjects = () => {
         }
       }
 
-      return (
-        projectId.includes(query) ||
-        title.includes(query) ||
-        financeName.includes(query) ||
-        financeEmail.includes(query) ||
-        amount.includes(query) ||
-        currency.includes(query) ||
-          progressStatus.includes(query) ||
-        startDateFormatted.includes(query) ||
-        endDateFormatted.includes(query) ||
-        startDateYear.includes(query) ||
-        endDateYear.includes(query) ||
-        startDateMonth.includes(query) ||
-        endDateMonth.includes(query) ||
-        startDateDay.includes(query) ||
-        endDateDay.includes(query)
-      )
+      // Combine all searchable fields into a single string
+      const searchableText = [
+        projectId,
+        title,
+        financeName,
+        financeEmail,
+        amount,
+        currency,
+        progressStatus,
+        budgetStatus,
+        budgetStatusFormatted,
+        startDateFormatted,
+        endDateFormatted,
+        startDateYear,
+        endDateYear,
+        startDateMonth,
+        endDateMonth,
+        startDateDay,
+        endDateDay
+      ].join(' ')
+
+      // Check if ALL search terms match (AND logic)
+      return searchTerms.every(term => searchableText.includes(term))
     })
 
     setProjects(filtered)
@@ -152,6 +163,34 @@ const MyProjects = () => {
     return statusStyles[status] || statusStyles['Not Started']
   }
 
+  const getBudgetStatus = (project) => {
+    if (!project || project.amountDonated === null || project.amountDonated === undefined) return 'balanced'
+    const amountDonated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : project.amountDonated
+    const totalExpense = project.totalExpense || 0
+    
+    if (totalExpense < amountDonated) return 'underspent'
+    if (totalExpense > amountDonated) return 'overspent'
+    return 'balanced'
+  }
+
+  const getBudgetStatusBadgeStyle = (status) => {
+    const statusStyles = {
+      'underspent': 'bg-green-100 text-green-700 border-green-200',
+      'overspent': 'bg-red-100 text-red-700 border-red-200',
+      'balanced': 'bg-blue-100 text-blue-700 border-blue-200'
+    }
+    return statusStyles[status] || statusStyles['balanced']
+  }
+
+  const formatBudgetStatus = (status) => {
+    const statusMap = {
+      'underspent': 'Underspent',
+      'overspent': 'Overspent',
+      'balanced': 'Balanced'
+    }
+    return statusMap[status] || 'Balanced'
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -191,7 +230,7 @@ const MyProjects = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search by project ID, title, dates, finance personnel, amount, progress status..."
+                placeholder="Search by project ID, title, dates, finance personnel, amount, progress status, budget status..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
@@ -314,12 +353,16 @@ const MyProjects = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Progress
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {projects.map((project) => {
                       const utilization = calculateUtilization(project)
                       const progressStatus = project.projectStatus || 'Not Started'
+                      const budgetStatus = getBudgetStatus(project)
                       return (
                         <tr 
                           key={project._id} 
@@ -365,6 +408,11 @@ const MyProjects = () => {
                               {progressStatus}
                             </span>
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                              {formatBudgetStatus(budgetStatus)}
+                            </span>
+                          </td>
                         </tr>
                       )
                     })}
@@ -378,6 +426,7 @@ const MyProjects = () => {
               {projects.map((project) => {
                 const utilization = calculateUtilization(project)
                 const progressStatus = project.projectStatus || 'Not Started'
+                const budgetStatus = getBudgetStatus(project)
                 return (
                 <div
                   key={project._id}
@@ -442,6 +491,14 @@ const MyProjects = () => {
                       <span className="text-xs text-gray-500 block mb-2">Progress</span>
                       <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
                         {progressStatus}
+                      </span>
+                    </div>
+
+                    {/* Status */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <span className="text-xs text-gray-500 block mb-2">Status</span>
+                      <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                        {formatBudgetStatus(budgetStatus)}
                       </span>
                     </div>
                   </div>

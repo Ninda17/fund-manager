@@ -66,6 +66,22 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       />
     </svg>
   );
+  const ReallocationIcon = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-5 h-5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+      />
+    </svg>
+  );
 
   // Admin menu items
   const adminMenuItems = [
@@ -94,6 +110,11 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       path: "/finance/dashboard",
       icon: dashboardIcon,
     },
+    {
+      name: "Reallocations",
+      path: "/finance/reallocations",
+      icon: ReallocationIcon,
+    },
     // Add more finance menu items here as needed
   ];
 
@@ -113,6 +134,11 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       name: "My Projects",
       path: "/program/projects",
       icon: MyProjectIcon,
+    },
+    {
+      name: "Reallocation",
+      path: "/program/reallocations",
+      icon: ReallocationIcon,
     },
     // Add more program menu items here as needed
   ];

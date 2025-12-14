@@ -9,7 +9,10 @@ const {
   updateProject,
   deleteProject,
   deleteActivity,
-  deleteSubActivity
+  deleteSubActivity,
+  createReallocationRequest,
+  getAllReallocationRequests,
+  getReallocationRequestById
 } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
 
@@ -43,6 +46,11 @@ router.put("/projects/:id", updateProject);
 
 // Delete project
 router.delete("/projects/:id", deleteProject);
+
+// Reallocation request routes
+router.post("/reallocation-requests", createReallocationRequest);
+router.get("/reallocation-requests", getAllReallocationRequests);
+router.get("/reallocation-requests/:id", getReallocationRequestById);
 
 module.exports = router;
 

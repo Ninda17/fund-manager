@@ -23,6 +23,10 @@ import ActivityDetails from "./pages/Program/ActivityDetails";
 import ManageUsers from "./pages/Admin/ManageUsers";
 import UserDetail from "./pages/Admin/UserDetails";
 import AllProjects from "./pages/Admin/AllProjects";
+import ReallocationRequests from "./pages/Program/ReallocationRequests";
+import Reallocations from './pages/Finance/Reallocations'
+import FinanceRequestDetails from './pages/Finance/RequestDetails'
+import RequestDetails from "./pages/Program/RequestDetails";
 
 const App = () => {
   return (
@@ -44,6 +48,8 @@ const App = () => {
 
           <Route element={<PrivateRoute allowedRoles={["finance"]} />}>
             <Route path="finance/dashboard" element={<FinanceDashboard />} />
+            <Route path="finance/reallocations" element={<Reallocations />} />
+            <Route path="finance/reallocations/:id" element={<FinanceRequestDetails />} />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["program"]} />}>
@@ -52,10 +58,9 @@ const App = () => {
             <Route path="program/projects" element={<MyProjects />} />
             <Route path="program/projects/:id" element={<ProjectDetails />} />
             <Route path="program/projects/:id/edit" element={<EditProject />} />
-            <Route
-              path="program/projects/:projectId/activities/:activityId"
-              element={<ActivityDetails />}
-            />
+            <Route path="program/projects/:projectId/activities/:activityId" element={<ActivityDetails />}/>
+            <Route path="program/reallocations" element={<ReallocationRequests />}/>
+            <Route path="program/reallocations/:id" element={<RequestDetails />}/>
           </Route>
 
           <Route
