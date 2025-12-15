@@ -17,8 +17,14 @@ const ManageUsers = () => {
     setError("");
     try {
       const res = await axiosInstance.get(API_PATHS.ADMIN.USERS);
-      setUsers(res.data.data || []);
-      setAllUsers(res.data.data || []);
+
+      // Filter out admin users
+      const nonAdminUsers = (res.data.data || []).filter(
+        (user) => user.role !== "admin"
+      );
+
+      setUsers(nonAdminUsers);
+      setAllUsers(nonAdminUsers);
     } catch (err) {
       console.error("Fetch users error:", err);
       setError(err.response?.data?.message || "Failed to fetch users.");
@@ -59,7 +65,10 @@ const ManageUsers = () => {
             Manage Users
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">
-            View and manage all users
+            View and manage all non-admin users
+          </p>
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
+            Admin users are not shown in this list for security reasons
           </p>
         </div>
 
@@ -269,11 +278,27 @@ const ManageUsers = () => {
         {/* No Users */}
         {!loading && !error && users.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+            <svg
+              className="w-16 h-16 text-gray-400 mx-auto mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0H15m12 0h-6"
+              />
+            </svg>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No users found
+              No non-admin users found
             </h3>
             <p className="text-gray-500 mb-6">
-              There are currently no users to display.
+              There are currently no non-admin users to display.
+            </p>
+            <p className="text-gray-400 text-sm">
+              Admin users are not shown in this list
             </p>
           </div>
         )}
