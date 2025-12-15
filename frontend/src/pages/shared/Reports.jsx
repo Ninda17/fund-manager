@@ -3,7 +3,6 @@ import DashboardLayout from '../../components/Layout/DashboardLayout';
 import axiosInstance from '../../utils/axiosInstance';
 import { API_PATHS } from '../../utils/apiPaths';
 import { useUserAuth } from '../../hooks/useUserAuth';
-import * as XLSX from 'xlsx';
 
 const Reports = () => {
   const { user } = useUserAuth();

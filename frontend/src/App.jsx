@@ -33,6 +33,7 @@ import Reports from "./pages/shared/Reports";
 import AllProjectsFinance from "./pages/Finance/AllProjects";
 import ProjectDetailsFinance from "./pages/Finance/ProjectDetails";
 import ActivityDetailsFinance from "./pages/Finance/ActivityDetails";
+import EditProjectFinance from "./pages/Finance/EditProject";
 
 const App = () => {
   return (
@@ -61,6 +62,7 @@ const App = () => {
             <Route path="finance/projects" element={<AllProjectsFinance />} />
             <Route path="finance/projects/:id" element={<ProjectDetailsFinance />} />
             <Route path="finance/projects/:projectId/activities/:activityId" element={<ActivityDetailsFinance />} />
+            <Route path="finance/projects/:id/edit" element={<EditProjectFinance />} />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["program"]} />}>
