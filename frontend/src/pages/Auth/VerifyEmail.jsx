@@ -8,7 +8,7 @@ import { API_PATHS } from '../../utils/apiPaths';
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(searchParams.get('email') || '');
-  const [token, setToken] = useState(searchParams.get('token') || '');
+  const [token, _setToken] = useState(searchParams.get('token') || '');
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [verifying, setVerifying] = useState(false);

@@ -34,7 +34,7 @@ export const API_PATHS = {
     DELETE_PROJECT: (id) => `${API_BASE}/program/projects/${id}`,
     DELETE_ACTIVITY: (projectId, activityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}`,
-    DELETE_SUBACTIVITY: (projectId, activityId, subaivityId) =>
+    DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
     // Reallocation endpoints
@@ -52,5 +52,17 @@ export const API_PATHS = {
       `${API_BASE}/finance/reallocation-requests/${id}/approve`,
     REJECT_REALLOCATION_REQUEST: (id) =>
       `${API_BASE}/finance/reallocation-requests/${id}/reject`,
+    GET_PROJECTS: `${API_BASE}/finance/projects`,
+    GET_PROJECT_BY_ID: (id) => `${API_BASE}/finance/projects/${id}`,
+    GET_ACTIVITY_BY_ID: (projectId, activityId) =>
+      `${API_BASE}/finance/projects/${projectId}/activities/${activityId}`,
+  },
+  // Shared/Report endpoints (available to all authenticated users)
+  REPORTS: {
+    DOWNLOAD_PROJECT: (projectId) => `${API_BASE}/shared/reports/project/${projectId}`,
+    DOWNLOAD_ACTIVITY: (projectId, activityId) =>
+      `${API_BASE}/shared/reports/activity/${projectId}/${activityId}`,
+    DOWNLOAD_SUBACTIVITY: (projectId, activityId, subactivityId) =>
+      `${API_BASE}/shared/reports/subactivity/${projectId}/${activityId}/${subactivityId}`,
   },
 };

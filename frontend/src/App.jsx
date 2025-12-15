@@ -29,6 +29,10 @@ import FinanceRequestDetails from './pages/Finance/RequestDetails'
 import RequestDetails from "./pages/Program/RequestDetails";
 import ProjectDetail from "./pages/Admin/ProjectDetail";
 import ActivityDetail from "./pages/Admin/ActivityDetail";
+import Reports from "./pages/shared/Reports";
+import AllProjectsFinance from "./pages/Finance/AllProjects";
+import ProjectDetailsFinance from "./pages/Finance/ProjectDetails";
+import ActivityDetailsFinance from "./pages/Finance/ActivityDetails";
 
 const App = () => {
   return (
@@ -54,6 +58,9 @@ const App = () => {
             <Route path="finance/dashboard" element={<FinanceDashboard />} />
             <Route path="finance/reallocations" element={<Reallocations />} />
             <Route path="finance/reallocations/:id" element={<FinanceRequestDetails />} />
+            <Route path="finance/projects" element={<AllProjectsFinance />} />
+            <Route path="finance/projects/:id" element={<ProjectDetailsFinance />} />
+            <Route path="finance/projects/:projectId/activities/:activityId" element={<ActivityDetailsFinance />} />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["program"]} />}>
@@ -73,6 +80,7 @@ const App = () => {
             }
           >
             <Route path="profile" element={<Profile />} />
+            <Route path="reports" element={<Reports />} />
           </Route>
         </Routes>
       </Router>

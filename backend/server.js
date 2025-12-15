@@ -8,6 +8,7 @@ const authRoutes = require("./routes/authRoutes")
 const adminRoutes = require("./routes/adminRoutes")
 const programRoutes = require("./routes/programRoutes")
 const financeRoutes = require("./routes/financeRoutes")
+const sharedRoutes = require("./routes/sharedRoutes")
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/program", programRoutes);
 app.use("/api/finance", financeRoutes);
+app.use("/api/shared", sharedRoutes);
 
 //start server
 

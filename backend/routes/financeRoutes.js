@@ -5,6 +5,9 @@ const {
   getReallocationRequestById,
   approveReallocationRequest,
   rejectReallocationRequest,
+  getAllProjects,
+  getProjectById,
+  getActivityById,
 } = require("../controllers/financeController");
 const { protect, financeOnly } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -27,6 +30,15 @@ router.put(
 
 // Reject reallocation request
 router.put("/reallocation-requests/:id/reject", rejectReallocationRequest);
+
+// Get all projects assigned to finance user
+router.get("/projects", getAllProjects);
+
+// Get project by ID
+router.get("/projects/:id", getProjectById);
+
+// Get activity by ID
+router.get("/projects/:projectId/activities/:activityId", getActivityById);
 
 module.exports = router;
 

@@ -12,7 +12,6 @@ const ProjectDetail = () => {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredActivities, setFilteredActivities] = useState([]);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (id) {

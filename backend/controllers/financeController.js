@@ -648,10 +648,331 @@ const rejectReallocationRequest = async (req, res) => {
   }
 };
 
+const getAllProjects = async (req, res) => {
+  try {
+    // Get all projects assigned to the logged-in finance user
+    // Use lean() to get plain objects, then decrypt manually
+    const projects = await Project.find({
+      financePersonnel: req.user.id
+    })
+    .select("projectId title startDate endDate financePersonnel amountDonated currency totalExpense projectStatus")
+    .populate("financePersonnel", "name email")
+    .populate("programPersonnel", "name email")
+    .lean()
+    .sort({ createdAt: -1 });
+
+    // Decrypt the encrypted fields manually
+    const { decrypt } = require("../utils/encryption");
+    const decryptedProjects = projects.map(project => {
+      const decrypted = { ...project };
+      
+      // Decrypt amountDonated
+      if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
+        decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
+      }
+      
+      // Decrypt startDate
+      if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
+        decrypted.startDate = new Date(decrypt(decrypted.startDate));
+      }
+      
+      // Decrypt endDate
+      if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
+        decrypted.endDate = new Date(decrypt(decrypted.endDate));
+      }
+      
+      // Decrypt currency
+      if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
+        decrypted.currency = decrypt(decrypted.currency);
+      }
+      
+      // Decrypt totalExpense
+      if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
+        decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
+      }
+      
+      return decrypted;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: decryptedProjects.length,
+      data: decryptedProjects,
+    });
+  } catch (error) {
+    console.error("Get all projects error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const getProjectById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate id format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Get project by ID, ensuring it's assigned to the logged-in finance user
+    // Use lean() to get plain objects, then decrypt manually
+    const project = await Project.findOne({
+      _id: id,
+      financePersonnel: req.user.id
+    })
+    .populate("financePersonnel", "name email")
+    .populate("programPersonnel", "name email")
+    .lean();
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Decrypt all encrypted fields manually
+    const { decrypt } = require("../utils/encryption");
+    const decrypted = { ...project };
+    
+    // Decrypt donorName
+    if (decrypted.donorName && typeof decrypted.donorName === 'string' && decrypted.donorName.includes(':')) {
+      decrypted.donorName = decrypt(decrypted.donorName);
+    }
+    
+    // Decrypt description
+    if (decrypted.description && typeof decrypted.description === 'string' && decrypted.description !== '' && decrypted.description.includes(':')) {
+      decrypted.description = decrypt(decrypted.description);
+    }
+    
+    // Decrypt amountDonated
+    if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
+      decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
+    }
+    
+    // Decrypt startDate
+    if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
+      decrypted.startDate = new Date(decrypt(decrypted.startDate));
+    }
+    
+    // Decrypt endDate
+    if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
+      decrypted.endDate = new Date(decrypt(decrypted.endDate));
+    }
+    
+    // Decrypt currency
+    if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
+      decrypted.currency = decrypt(decrypted.currency);
+    }
+    
+    // Decrypt projectType
+    if (decrypted.projectType && typeof decrypted.projectType === 'string' && decrypted.projectType.includes(':')) {
+      decrypted.projectType = decrypt(decrypted.projectType);
+    }
+    
+    // Decrypt totalExpense
+    if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
+      decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
+    }
+    
+    // Decrypt activities
+    if (decrypted.activities && Array.isArray(decrypted.activities)) {
+      decrypted.activities = decrypted.activities.map(activity => {
+        const decryptedActivity = { ...activity };
+        
+        // Decrypt activity name
+        if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
+          decryptedActivity.name = decrypt(decryptedActivity.name);
+        }
+        
+        // Decrypt activity description
+        if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
+          decryptedActivity.description = decrypt(decryptedActivity.description);
+        }
+        
+        // Decrypt activity budget
+        if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
+          decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
+        }
+        
+        // Decrypt activity expense
+        if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
+          decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
+        }
+        
+        // Decrypt subActivities
+        if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
+          decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
+            const decryptedSubActivity = { ...subActivity };
+            
+            // Decrypt sub activity name
+            if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
+              decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
+            }
+            
+            // Decrypt sub activity budget
+            if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
+              decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
+            }
+            
+            // Decrypt sub activity expense
+            if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
+              decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
+            }
+            
+            return decryptedSubActivity;
+          });
+        }
+        
+        return decryptedActivity;
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: decrypted,
+    });
+  } catch (error) {
+    console.error("Get project by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const getActivityById = async (req, res) => {
+  try {
+    const { projectId, activityId } = req.params;
+
+    // Validate projectId format
+    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // activityId can be MongoDB ObjectId or activityId string, so no strict validation needed
+
+    // Get project by ID, ensuring it's assigned to the logged-in finance user
+    // Use lean() to get plain objects, then decrypt manually
+    const project = await Project.findOne({
+      _id: projectId,
+      financePersonnel: req.user.id
+    })
+    .lean();
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Find the activity within the project's activities array
+    // activityId could be MongoDB _id or activityId field
+    let activity = null;
+    if (project.activities && Array.isArray(project.activities)) {
+      activity = project.activities.find(
+        (act) => act._id?.toString() === activityId || act.activityId === activityId
+      );
+    }
+
+    if (!activity) {
+      return res.status(404).json({
+        success: false,
+        message: "Activity not found",
+      });
+    }
+
+    // Decrypt all encrypted fields manually
+    const { decrypt } = require("../utils/encryption");
+    const decryptedActivity = { ...activity };
+    
+    // Decrypt activity name
+    if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
+      decryptedActivity.name = decrypt(decryptedActivity.name);
+    }
+    
+    // Decrypt activity description
+    if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
+      decryptedActivity.description = decrypt(decryptedActivity.description);
+    }
+    
+    // Decrypt activity budget
+    if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
+      decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
+    }
+    
+    // Decrypt activity expense
+    if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
+      decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
+    }
+    
+    // Decrypt subActivities
+    if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
+      decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
+        const decryptedSubActivity = { ...subActivity };
+        
+        // Decrypt sub activity name
+        if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
+          decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
+        }
+        
+        // Decrypt sub activity budget
+        if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
+          decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
+        }
+        
+        // Decrypt sub activity expense
+        if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
+          decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
+        }
+        
+        return decryptedSubActivity;
+      });
+    }
+
+    // Also include project basic info for context
+    const projectInfo = {
+      _id: project._id,
+      projectId: project.projectId,
+      title: project.title,
+      currency: project.currency && typeof project.currency === 'string' && project.currency.includes(':') 
+        ? decrypt(project.currency) 
+        : project.currency
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        activity: decryptedActivity,
+        project: projectInfo
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching activity details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   getAllReallocationRequests,
   getReallocationRequestById,
   approveReallocationRequest,
   rejectReallocationRequest,
+  getAllProjects,
+  getProjectById,
+  getActivityById,
 };
 

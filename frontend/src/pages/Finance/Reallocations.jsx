@@ -441,32 +441,6 @@ const Reallocations = () => {
                         )}
                       </div>
                     </div>
-
-                    {/* Actions */}
-                    <div className="pt-2 border-t border-gray-100 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => navigate(`/finance/reallocations/${request._id}`)}
-                        className="flex-1 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-                      >
-                        View Details
-                      </button>
-                      {request.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleApproveClick(request)}
-                            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleRejectClick(request)}
-                            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
-                    </div>
                   </div>
                 </div>
               ))}
