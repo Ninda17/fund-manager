@@ -5,6 +5,9 @@ const {
   getUserById,
   deleteUser,
   updateUserApproval,
+  getProjectById,
+  getActivityById,
+  getAllProjectsAdmin,
 } = require("../controllers/adminController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -22,6 +25,16 @@ router.delete("/users/:id", deleteUser);
 
 // Update user approval status
 router.put("/users/:id/approval", updateUserApproval);
+
+// Get all projects created by admin
+router.get("/projects", getAllProjectsAdmin);
+
+// Get project by ID
+router.get("/projects/:id", getProjectById);
+
+// Get activity by ID (within a project)
+router.get("/projects/:projectId/activities/:activityId", getActivityById);
+
 
 module.exports = router;
 
