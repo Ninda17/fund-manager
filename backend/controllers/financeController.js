@@ -2,7 +2,7 @@ const Project = require("../models/projectModel");
 const ReallocationRequest = require("../models/reallocationRequestModel");
 const mongoose = require("mongoose");
 const path = require("path");
-
+console
 // Helper function to build financePersonnel query that handles both ObjectId and string formats
 const buildFinancePersonnelQuery = (userId) => {
   const userIdString = userId.toString();
@@ -678,7 +678,7 @@ const getAllProjects = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const financePersonnelQuery = buildFinancePersonnelQuery(userId);
     
-    console.log("Finance user ID:", userId.toString());
+    // console.log("Finance user ID:", userId.toString());
     
     const projects = await Project.find(financePersonnelQuery)
     .select("projectId title startDate endDate financePersonnel amountDonated currency totalExpense projectStatus")
@@ -687,7 +687,7 @@ const getAllProjects = async (req, res) => {
     .lean()
     .sort({ createdAt: -1 });
     
-    console.log("Found projects:", projects.length);
+    // console.log("Found projects:", projects.length);
 
     // Decrypt the encrypted fields manually
     const { decrypt } = require("../utils/encryption");

@@ -426,6 +426,7 @@ const EditProject = () => {
                     setDonorName(e.target.value)
                     setError('')
                   }}
+                  readOnly
                 />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -440,6 +441,7 @@ const EditProject = () => {
                     }}
                     min="0"
                     step="0.01"
+                    readOnly
                   />
                   
                   <div>
@@ -453,6 +455,7 @@ const EditProject = () => {
                         setError('')
                       }}
                       className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      disabled
                     >
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -573,6 +576,7 @@ const EditProject = () => {
                       onChange={(e) => updateActivity(activityIndex, 'budget', e.target.value)}
                       min="0"
                       step="0.01"
+                      readOnly
                     />
                     
                     <div>
@@ -642,6 +646,7 @@ const EditProject = () => {
                             onChange={(e) => updateSubActivity(activityIndex, subIndex, 'budget', e.target.value)}
                             min="0"
                             step="0.01"
+                            readOnly
                           />
                         </div>
                       </div>
