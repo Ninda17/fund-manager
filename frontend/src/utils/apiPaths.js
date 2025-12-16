@@ -56,6 +56,7 @@ export const API_PATHS = {
     GET_PROJECT_BY_ID: (id) => `${API_BASE}/finance/projects/${id}`,
     GET_ACTIVITY_BY_ID: (projectId, activityId) =>
       `${API_BASE}/finance/projects/${projectId}/activities/${activityId}`,
+    UPDATE_PROJECT: (id) => `${API_BASE}/finance/projects/${id}`,
   },
   // Shared/Report endpoints (available to all authenticated users)
   REPORTS: {

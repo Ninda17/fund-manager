@@ -966,6 +966,374 @@ const getActivityById = async (req, res) => {
   }
 };
 
+const updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      donorName,
+      amountDonated,
+      currency,
+      totalExpense,
+      activities,
+    } = req.body;
+
+    // Validate id format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format",
+      });
+    }
+
+    // Find project by ID, ensuring it belongs to the logged-in finance user
+    // Use lean() to get plain object and avoid Mongoose document validation issues
+    const existingProject = await Project.findOne({
+      _id: id,
+      financePersonnel: req.user.id
+    }).lean();
+
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found or you do not have access",
+      });
+    }
+
+    // Import encryption utilities
+    const { encrypt, decrypt } = require("../utils/encryption");
+
+    // Build update object - only financial fields allowed
+    const updateObj = {};
+
+    // Update donorName if provided
+    if (donorName !== undefined) {
+      if (!donorName || !donorName.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Donor name cannot be empty",
+        });
+      }
+      updateObj.donorName = donorName.trim();
+    }
+
+    // Update amountDonated if provided
+    if (amountDonated !== undefined) {
+      const amount = parseFloat(amountDonated);
+      if (isNaN(amount) || amount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount donated must be a non-negative number",
+        });
+      }
+      updateObj.amountDonated = amount.toString(); // Will be encrypted below
+    }
+
+    // Update currency if provided
+    if (currency !== undefined) {
+      const validCurrencies = ["USD", "EUR", "BTN"];
+      if (!validCurrencies.includes(currency)) {
+        return res.status(400).json({
+          success: false,
+          message: `Currency must be one of: ${validCurrencies.join(", ")}`,
+        });
+      }
+      updateObj.currency = currency;
+    }
+
+    // Update totalExpense if provided (only valid when project has no activities)
+    if (totalExpense !== undefined) {
+      const expense = parseFloat(totalExpense);
+      if (isNaN(expense) || expense < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Total expense must be a non-negative number",
+        });
+      }
+      // Check if project has activities - if yes, totalExpense should be calculated, not set directly
+      if (existingProject.activities && Array.isArray(existingProject.activities) && existingProject.activities.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Total expense cannot be set directly when project has activities. It is calculated from activity expenses.",
+        });
+      }
+      updateObj.totalExpense = expense.toString(); // Will be encrypted below
+    }
+
+    // Handle activities updates separately using MongoDB native collection methods
+    // This avoids Mongoose casting issues with encrypted fields
+    const activityUpdates = {};
+    
+    if (activities !== undefined) {
+      if (!Array.isArray(activities)) {
+        return res.status(400).json({
+          success: false,
+          message: "Activities must be an array",
+        });
+      }
+
+      // Get existing activities to preserve non-financial fields
+      const existingActivities = existingProject.activities || [];
+      
+      // Build updates for activities using MongoDB native collection method
+      existingActivities.forEach((existingActivity, activityIndex) => {
+        // Find matching activity from request by activityId or _id
+        const activityUpdate = activities.find(
+          act => (act._id && act._id.toString() === existingActivity._id?.toString()) ||
+                  act.activityId === existingActivity.activityId
+        );
+
+        if (!activityUpdate) {
+          // No update for this activity
+          return;
+        }
+
+        // Only update budget if provided
+        if (activityUpdate.budget !== undefined && activityUpdate.budget !== null) {
+          const budget = parseFloat(activityUpdate.budget);
+          if (isNaN(budget) || budget < 0) {
+            throw new Error("Activity budget must be a non-negative number");
+          }
+          activityUpdates[`activities.${activityIndex}.budget`] = encrypt(budget.toString());
+        }
+
+        // Only update expense if provided
+        if (activityUpdate.expense !== undefined && activityUpdate.expense !== null) {
+          const expense = parseFloat(activityUpdate.expense);
+          if (isNaN(expense) || expense < 0) {
+            throw new Error("Activity expense must be a non-negative number");
+          }
+          activityUpdates[`activities.${activityIndex}.expense`] = encrypt(expense.toString());
+        }
+
+        // Update subActivities budgets and expenses if provided
+        if (activityUpdate.subActivities && Array.isArray(activityUpdate.subActivities)) {
+          const existingSubActivities = existingActivity.subActivities || [];
+          
+          existingSubActivities.forEach((existingSubActivity, subIndex) => {
+            // Find matching subactivity from request by _id or subactivityId
+            const subActivityUpdate = activityUpdate.subActivities.find(
+              subAct => (subAct._id && subAct._id.toString() === existingSubActivity._id?.toString()) ||
+                         subAct.subactivityId === existingSubActivity.subactivityId
+            );
+
+            if (!subActivityUpdate) {
+              // No update for this subactivity
+              return;
+            }
+
+            // Only update budget if provided
+            if (subActivityUpdate.budget !== undefined && subActivityUpdate.budget !== null) {
+              const budget = parseFloat(subActivityUpdate.budget);
+              if (isNaN(budget) || budget < 0) {
+                throw new Error("Sub-activity budget must be a non-negative number");
+              }
+              activityUpdates[`activities.${activityIndex}.subActivities.${subIndex}.budget`] = encrypt(budget.toString());
+            }
+
+            // Only update expense if provided
+            if (subActivityUpdate.expense !== undefined && subActivityUpdate.expense !== null) {
+              const expense = parseFloat(subActivityUpdate.expense);
+              if (isNaN(expense) || expense < 0) {
+                throw new Error("Sub-activity expense must be a non-negative number");
+              }
+              activityUpdates[`activities.${activityIndex}.subActivities.${subIndex}.expense`] = encrypt(expense.toString());
+            }
+          });
+        }
+      });
+    }
+
+    // Use MongoDB native collection method to update top-level fields
+    if (Object.keys(updateObj).length > 0) {
+      // Encrypt amountDonated if it's being updated
+      if (updateObj.amountDonated) {
+        updateObj.amountDonated = encrypt(updateObj.amountDonated);
+      }
+      
+      // Encrypt totalExpense if it's being updated
+      if (updateObj.totalExpense) {
+        updateObj.totalExpense = encrypt(updateObj.totalExpense);
+      }
+      
+      await Project.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: updateObj }
+      );
+    }
+
+    // Use MongoDB native collection method to update activities
+    if (Object.keys(activityUpdates).length > 0) {
+      await Project.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: activityUpdates }
+      );
+    }
+
+    // Recalculate expenses based on the hierarchy
+    // Logic:
+    // 1. If activity has subactivities: calculate expense from subactivity expenses
+    // 2. If activity has no subactivities: use activity.expense directly
+    // 3. If project has activities: calculate totalExpense from activity expenses
+    // 4. If project has no activities: use totalExpense directly
+    const updatedProject = await Project.findById(id).lean();
+    if (!updatedProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after update",
+      });
+    }
+
+    const expenseRecalcUpdates = {};
+
+    if (updatedProject.activities && Array.isArray(updatedProject.activities) && updatedProject.activities.length > 0) {
+      // Project has activities: calculate totalExpense from activity expenses
+      let totalExpense = 0;
+
+      updatedProject.activities.forEach((activity, activityIndex) => {
+        let activityExpense = 0;
+        
+        // If activity has subactivities: calculate expense from subactivity expenses
+        if (activity.subActivities && Array.isArray(activity.subActivities) && activity.subActivities.length > 0) {
+          activity.subActivities.forEach(subActivity => {
+            if (subActivity.expense !== undefined && subActivity.expense !== null) {
+              let subExpense = 0;
+              if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
+                subExpense = parseFloat(decrypt(subActivity.expense)) || 0;
+              } else if (typeof subActivity.expense === 'number') {
+                subExpense = subActivity.expense;
+              }
+              activityExpense += subExpense;
+            }
+          });
+          // Encrypt and update the calculated activity expense
+          const encryptedActivityExpense = encrypt(activityExpense.toString());
+          expenseRecalcUpdates[`activities.${activityIndex}.expense`] = encryptedActivityExpense;
+        } else {
+          // If activity has no subactivities: use activity.expense directly
+          // Decrypt to get the actual value for totalExpense calculation
+          if (activity.expense !== undefined && activity.expense !== null) {
+            if (typeof activity.expense === 'string' && activity.expense.includes(':')) {
+              activityExpense = parseFloat(decrypt(activity.expense)) || 0;
+            } else if (typeof activity.expense === 'number') {
+              activityExpense = activity.expense;
+            }
+          }
+        }
+        
+        totalExpense += activityExpense;
+      });
+
+      // Calculate total expense from activity expenses
+      const encryptedTotalExpense = encrypt(totalExpense.toString());
+      expenseRecalcUpdates.totalExpense = encryptedTotalExpense;
+    } else {
+      // If project has no activities: use totalExpense directly (don't recalculate)
+      // Only update if totalExpense was explicitly provided in the request
+      // (This would need to be added to the API if needed)
+    }
+
+    // Update recalculated expenses using MongoDB native collection method
+    if (Object.keys(expenseRecalcUpdates).length > 0) {
+      await Project.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: expenseRecalcUpdates }
+      );
+    }
+
+    // Fetch the updated project using lean to avoid casting issues
+    const savedProject = await Project.findById(id).lean();
+    if (!savedProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found after update",
+      });
+    }
+
+    // Decrypt fields for response
+    const decrypted = { ...savedProject };
+    
+    // Decrypt donorName
+    if (decrypted.donorName && typeof decrypted.donorName === 'string' && decrypted.donorName.includes(':')) {
+      decrypted.donorName = decrypt(decrypted.donorName);
+    }
+    
+    // Decrypt amountDonated
+    if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
+      decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
+    }
+    
+    // Decrypt currency
+    if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
+      decrypted.currency = decrypt(decrypted.currency);
+    }
+    
+    // Decrypt activities
+    if (decrypted.activities && Array.isArray(decrypted.activities)) {
+      decrypted.activities = decrypted.activities.map(activity => {
+        const decryptedActivity = { ...activity };
+        
+        if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
+          decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
+        }
+        
+        if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
+          decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
+        }
+        
+        if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
+          decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
+            const decryptedSubActivity = { ...subActivity };
+            
+            if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
+              decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
+            }
+            
+            if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
+              decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
+            }
+            
+            return decryptedSubActivity;
+          });
+        }
+        
+        return decryptedActivity;
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Project financial information updated successfully",
+      data: decrypted,
+    });
+  } catch (error) {
+    console.error("Update project error:", error);
+
+    // Handle validation errors from mongoose
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors,
+      });
+    }
+
+    // Handle custom error messages
+    if (error.message.includes("budget") || error.message.includes("expense")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   getAllReallocationRequests,
   getReallocationRequestById,
@@ -974,5 +1342,6 @@ module.exports = {
   getAllProjects,
   getProjectById,
   getActivityById,
+  updateProject,
 };
 

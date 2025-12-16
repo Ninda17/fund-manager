@@ -8,6 +8,7 @@ const {
   getAllProjects,
   getProjectById,
   getActivityById,
+  updateProject,
 } = require("../controllers/financeController");
 const { protect, financeOnly } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -36,6 +37,9 @@ router.get("/projects", getAllProjects);
 
 // Get project by ID
 router.get("/projects/:id", getProjectById);
+
+// Update project (financial fields only)
+router.put("/projects/:id", updateProject);
 
 // Get activity by ID
 router.get("/projects/:projectId/activities/:activityId", getActivityById);

@@ -152,27 +152,38 @@ projectSchema.pre("save", function (next) {
 
 
 // It calculates activity expenses from sub-activities and total expense from activities
+// Logic:
+// 1. If activity has subactivities: calculate expense from subactivity expenses
+// 2. If activity has no subactivities: use activity.expense directly (don't override)
+// 3. If project has activities: calculate totalExpense from activity expenses
+// 4. If project has no activities: use totalExpense directly (don't override)
 projectSchema.pre("save", function (next) {
-  if (this.activities && Array.isArray(this.activities)) {
+  if (this.activities && Array.isArray(this.activities) && this.activities.length > 0) {
     this.activities.forEach(activity => {
-      // Calculate activity expense = sum of all sub-activity expenses
-      if (activity.subActivities && Array.isArray(activity.subActivities)) {
-        activity.expense = activity.subActivities.reduce(
+      // If activity has subactivities: calculate expense from subactivity expenses
+      if (activity.subActivities && Array.isArray(activity.subActivities) && activity.subActivities.length > 0) {
+        const calculatedExpense = activity.subActivities.reduce(
           (sum, sa) => sum + (sa.expense || 0),
           0
         );
-      } else {
-        activity.expense = 0;
+        activity.expense = calculatedExpense;
       }
+      // If activity has no subactivities: keep activity.expense as is (use directly if set)
+      // Don't override - let it use the value that was set directly
     });
 
     // Calculate total expense = sum of all activity expenses
-    this.totalExpense = this.activities.reduce(
+    const calculatedTotalExpense = this.activities.reduce(
       (sum, act) => sum + (act.expense || 0),
       0
     );
+    this.totalExpense = calculatedTotalExpense;
   } else {
-    this.totalExpense = 0;
+    // If project has no activities: keep totalExpense as is (use directly if set)
+    // Only set to 0 if it's undefined/null
+    if (this.totalExpense === undefined || this.totalExpense === null) {
+      this.totalExpense = 0;
+    }
   }
   next();
 });
