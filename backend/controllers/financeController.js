@@ -3,14 +3,34 @@ const ReallocationRequest = require("../models/reallocationRequestModel");
 const mongoose = require("mongoose");
 const path = require("path");
 
+// Helper function to build financePersonnel query that handles both ObjectId and string formats
+const buildFinancePersonnelQuery = (userId) => {
+  const userIdString = userId.toString();
+  return {
+    $or: [
+      { financePersonnel: new mongoose.Types.ObjectId(userIdString) },
+      { financePersonnel: userIdString },
+      {
+        $expr: {
+          $or: [
+            { $eq: [{ $toString: "$financePersonnel" }, userIdString] },
+            { $eq: ["$financePersonnel", userIdString] }
+          ]
+        }
+      }
+    ]
+  };
+};
+
 const getAllReallocationRequests = async (req, res) => {
   try {
     const { status } = req.query;
 
     // Finance can see requests for projects they are assigned to
-    const projectsAssignedToFinance = await Project.find({
-      financePersonnel: req.user.id,
-    }).select("_id");
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
+    const projectsAssignedToFinance = await Project.find(financePersonnelQuery).select("_id");
 
     const projectIds = projectsAssignedToFinance.map((p) => p._id);
 
@@ -60,9 +80,10 @@ const getReallocationRequestById = async (req, res) => {
     }
 
     // Finance can only view requests for projects they are assigned to
-    const projectsAssignedToFinance = await Project.find({
-      financePersonnel: req.user.id,
-    }).select("_id");
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
+    const projectsAssignedToFinance = await Project.find(financePersonnelQuery).select("_id");
 
     const projectIds = projectsAssignedToFinance.map((p) => p._id);
 
@@ -126,9 +147,10 @@ const approveReallocationRequest = async (req, res) => {
     }
 
     // Get the request
-    const projectsAssignedToFinance = await Project.find({
-      financePersonnel: req.user.id,
-    }).select("_id").lean();
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
+    const projectsAssignedToFinance = await Project.find(financePersonnelQuery).select("_id").lean();
 
     const projectIds = projectsAssignedToFinance.map((p) => p._id.toString());
 
@@ -580,9 +602,10 @@ const rejectReallocationRequest = async (req, res) => {
     }
 
     // Get the request
-    const projectsAssignedToFinance = await Project.find({
-      financePersonnel: req.user.id,
-    }).select("_id").lean();
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
+    const projectsAssignedToFinance = await Project.find(financePersonnelQuery).select("_id").lean();
 
     const projectIds = projectsAssignedToFinance.map((p) => p._id.toString());
 
@@ -652,14 +675,19 @@ const getAllProjects = async (req, res) => {
   try {
     // Get all projects assigned to the logged-in finance user
     // Use lean() to get plain objects, then decrypt manually
-    const projects = await Project.find({
-      financePersonnel: req.user.id
-    })
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
+    console.log("Finance user ID:", userId.toString());
+    
+    const projects = await Project.find(financePersonnelQuery)
     .select("projectId title startDate endDate financePersonnel amountDonated currency totalExpense projectStatus")
     .populate("financePersonnel", "name email")
     .populate("programPersonnel", "name email")
     .lean()
     .sort({ createdAt: -1 });
+    
+    console.log("Found projects:", projects.length);
 
     // Decrypt the encrypted fields manually
     const { decrypt } = require("../utils/encryption");
@@ -722,9 +750,12 @@ const getProjectById = async (req, res) => {
 
     // Get project by ID, ensuring it's assigned to the logged-in finance user
     // Use lean() to get plain objects, then decrypt manually
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
     const project = await Project.findOne({
       _id: id,
-      financePersonnel: req.user.id
+      ...financePersonnelQuery
     })
     .populate("financePersonnel", "name email")
     .populate("programPersonnel", "name email")
@@ -863,9 +894,12 @@ const getActivityById = async (req, res) => {
 
     // Get project by ID, ensuring it's assigned to the logged-in finance user
     // Use lean() to get plain objects, then decrypt manually
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
     const project = await Project.findOne({
       _id: projectId,
-      financePersonnel: req.user.id
+      ...financePersonnelQuery
     })
     .lean();
 
@@ -987,9 +1021,12 @@ const updateProject = async (req, res) => {
 
     // Find project by ID, ensuring it belongs to the logged-in finance user
     // Use lean() to get plain object and avoid Mongoose document validation issues
+    const userId = req.user._id || req.user.id;
+    const financePersonnelQuery = buildFinancePersonnelQuery(userId);
+    
     const existingProject = await Project.findOne({
       _id: id,
-      financePersonnel: req.user.id
+      ...financePersonnelQuery
     }).lean();
 
     if (!existingProject) {

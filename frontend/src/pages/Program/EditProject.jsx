@@ -9,19 +9,22 @@ const EditProject = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   
-  // Form state
-  const [projectId, setProjectId] = useState('')
+  // Form state - editable non-financial fields
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [financePersonnel, setFinancePersonnel] = useState('')
-  const [donorName, setDonorName] = useState('')
-  const [amountDonated, setAmountDonated] = useState('')
-  const [currency, setCurrency] = useState('USD')
   const [projectType, setProjectType] = useState('Education')
   const [projectStatus, setProjectStatus] = useState('Not Started')
   const [activities, setActivities] = useState([])
+  
+  // Read-only display fields (financial)
+  const [projectId, setProjectId] = useState('')
+  const [donorName, setDonorName] = useState('')
+  const [amountDonated, setAmountDonated] = useState('')
+  const [currency, setCurrency] = useState('USD')
+  const [totalExpense, setTotalExpense] = useState('')
   
   // Finance users list
   const [financeUsers, setFinanceUsers] = useState([])
@@ -32,7 +35,26 @@ const EditProject = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch project details and finance users on mount
+  // Fetch finance users on mount
+  useEffect(() => {
+    const fetchFinanceUsers = async () => {
+      try {
+        setLoadingFinanceUsers(true)
+        const response = await axiosInstance.get(API_PATHS.PROGRAM.FINANCE_PERSONNEL)
+        if (response.data.success) {
+          setFinanceUsers(response.data.data)
+        }
+      } catch (error) {
+        console.error('Error fetching finance users:', error)
+      } finally {
+        setLoadingFinanceUsers(false)
+      }
+    }
+    
+    fetchFinanceUsers()
+  }, [])
+
+  // Fetch project details on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -44,7 +66,7 @@ const EditProject = () => {
         if (projectResponse.data.success) {
           const project = projectResponse.data.data
           
-          // Format dates for input fields (YYYY-MM-DD)
+          // Format dates for display (YYYY-MM-DD)
           const formatDateForInput = (dateString) => {
             if (!dateString) return ''
             const date = new Date(dateString)
@@ -52,48 +74,52 @@ const EditProject = () => {
             return date.toISOString().split('T')[0]
           }
           
-          setProjectId(project.projectId || '')
+          // Set editable non-financial fields
           setTitle(project.title || '')
           setDescription(project.description || '')
           setStartDate(formatDateForInput(project.startDate))
           setEndDate(formatDateForInput(project.endDate))
-          setFinancePersonnel(project.financePersonnel?._id || project.financePersonnel || '')
-          setDonorName(project.donorName || '')
-          setAmountDonated(project.amountDonated?.toString() || '')
-          setCurrency(project.currency || 'USD')
+          // Handle financePersonnel - could be populated object or just ID string
+          const financePersonnelId = project.financePersonnel?._id 
+            ? project.financePersonnel._id.toString()
+            : (project.financePersonnel ? project.financePersonnel.toString() : '')
+          setFinancePersonnel(financePersonnelId)
           setProjectType(project.projectType || 'Education')
           setProjectStatus(project.projectStatus || 'Not Started')
           
-          // Set activities with proper structure
+          // Set read-only financial fields
+          setProjectId(project.projectId || '')
+          setDonorName(project.donorName || '')
+          setAmountDonated(project.amountDonated?.toString() || '')
+          setCurrency(project.currency || 'USD')
+          setTotalExpense(project.totalExpense?.toString() || '')
+          
+          // Set activities with proper structure (only non-financial fields are editable)
           if (project.activities && Array.isArray(project.activities)) {
             const formattedActivities = project.activities.map(activity => ({
+              _id: activity._id,
               activityId: activity.activityId || '',
               name: activity.name || '',
               description: activity.description || '',
-              budget: activity.budget?.toString() || '',
               projectStatus: activity.projectStatus || 'Not Started',
+              budget: activity.budget?.toString() || '', // Read-only
+              expense: activity.expense?.toString() || '', // Read-only
               subActivities: (activity.subActivities || []).map(sub => ({
+                _id: sub._id,
                 subactivityId: sub.subactivityId || '',
                 name: sub.name || '',
-                budget: sub.budget?.toString() || ''
+                budget: sub.budget?.toString() || '', // Read-only
+                expense: sub.expense?.toString() || '' // Read-only
               }))
             }))
             setActivities(formattedActivities)
           }
-        }
-        
-        // Fetch finance users
-        setLoadingFinanceUsers(true)
-        const financeResponse = await axiosInstance.get(API_PATHS.PROGRAM.FINANCE_PERSONNEL)
-        if (financeResponse.data.success) {
-          setFinanceUsers(financeResponse.data.data)
         }
       } catch (error) {
         console.error('Error fetching data:', error)
         setError(error.response?.data?.message || 'Failed to load project details. Please try again.')
       } finally {
         setLoading(false)
-        setLoadingFinanceUsers(false)
       }
     }
     
@@ -102,74 +128,45 @@ const EditProject = () => {
     }
   }, [id])
   
-  // Add new activity
-  const addActivity = () => {
-    setActivities([
-      ...activities,
-      {
-        activityId: '',
-        name: '',
-        description: '',
-        budget: '',
-        projectStatus: 'Not Started',
-        subActivities: []
-      }
-    ])
-  }
-  
-  // Remove activity
-  const removeActivity = (index) => {
-    setActivities(activities.filter((_, i) => i !== index))
-  }
-  
-  // Update activity
+  // Update activity non-financial fields
   const updateActivity = (index, field, value) => {
     const updated = [...activities]
-    updated[index][field] = value
-    setActivities(updated)
+    if (field === 'name' || field === 'description' || field === 'activityId' || field === 'projectStatus') {
+      updated[index][field] = value
+      setActivities(updated)
+    }
   }
   
-  // Add sub-activity
-  const addSubActivity = (activityIndex) => {
-    const updated = [...activities]
-    updated[activityIndex].subActivities.push({
-      subactivityId: '',
-      name: '',
-      budget: ''
-    })
-    setActivities(updated)
-  }
-  
-  // Remove sub-activity
-  const removeSubActivity = (activityIndex, subIndex) => {
-    const updated = [...activities]
-    updated[activityIndex].subActivities = updated[activityIndex].subActivities.filter(
-      (_, i) => i !== subIndex
-    )
-    setActivities(updated)
-  }
-  
-  // Update sub-activity
+  // Update subactivity non-financial fields
   const updateSubActivity = (activityIndex, subIndex, field, value) => {
     const updated = [...activities]
-    updated[activityIndex].subActivities[subIndex][field] = value
-    setActivities(updated)
+    if (field === 'name' || field === 'subactivityId') {
+      updated[activityIndex].subActivities[subIndex][field] = value
+      setActivities(updated)
+    }
   }
   
-  // Check if all required fields are filled
+  // Check if form is valid
   const isFormValid = () => {
     // Check basic required fields
-    if (!projectId.trim() || !title.trim() || !startDate || !endDate || !financePersonnel || !donorName.trim() || !amountDonated || financeUsers.length === 0) {
+    if (!title.trim()) {
       return false
     }
     
-    // Check if amountDonated is valid
-    if (parseFloat(amountDonated) < 0 || isNaN(parseFloat(amountDonated))) {
+    if (!startDate) {
+      return false
+    }
+    
+    if (!endDate) {
+      return false
+    }
+    
+    if (!financePersonnel || financePersonnel === '') {
       return false
     }
     
     // Check if endDate is after startDate
-    if (new Date(endDate) < new Date(startDate)) {
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       return false
     }
     
@@ -182,13 +179,8 @@ const EditProject = () => {
     setError('')
     
     // Validation
-    if (!projectId.trim()) {
-      setError('Project ID is required')
-      return
-    }
-    
     if (!title.trim()) {
-      setError('Project title is required')
+      setError('Title is required')
       return
     }
     
@@ -208,50 +200,66 @@ const EditProject = () => {
     }
     
     if (!financePersonnel) {
-      setError('Please select a finance personnel')
-      return
-    }
-    
-    if (!donorName.trim()) {
-      setError('Donor name is required')
-      return
-    }
-    
-    if (!amountDonated || parseFloat(amountDonated) < 0) {
-      setError('Amount donated must be a non-negative number')
+      setError('Finance personnel is required')
       return
     }
     
     setSaving(true)
     
     try {
-      // Prepare activities data
-      const activitiesData = activities.map(activity => ({
-        activityId: activity.activityId?.trim() || undefined,
-        name: activity.name?.trim() || undefined,
-        description: activity.description?.trim() || undefined,
-        budget: activity.budget ? parseFloat(activity.budget) : 0,
-        projectStatus: activity.projectStatus || 'Not Started',
-        subActivities: (activity.subActivities || []).map(sub => ({
-          subactivityId: sub.subactivityId?.trim() || undefined,
-          name: sub.name?.trim() || undefined,
-          budget: sub.budget ? parseFloat(sub.budget) : 0
-        }))
-      }))
+      // Prepare activities data - only include non-financial fields
+      const activitiesData = activities.map(activity => {
+        const activityData = {
+          _id: activity._id,
+          activityId: activity.activityId,
+        }
+        
+        // Only include fields that have values
+        if (activity.name !== undefined && activity.name !== null && activity.name.trim() !== '') {
+          activityData.name = activity.name.trim()
+        }
+        
+        if (activity.description !== undefined) {
+          activityData.description = activity.description.trim()
+        }
+        
+        if (activity.projectStatus !== undefined && activity.projectStatus !== null) {
+          activityData.projectStatus = activity.projectStatus
+        }
+        
+        // Handle subActivities
+        if (activity.subActivities && activity.subActivities.length > 0) {
+          activityData.subActivities = activity.subActivities.map(sub => {
+            const subData = {
+              _id: sub._id,
+              subactivityId: sub.subactivityId,
+            }
+            
+            // Only include name if it has a value
+            if (sub.name !== undefined && sub.name !== null && sub.name.trim() !== '') {
+              subData.name = sub.name.trim()
+            }
+            
+            return subData
+          })
+        }
+        
+        return activityData
+      })
       
       const projectData = {
-        projectId: projectId.trim(),
         title: title.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
         startDate,
         endDate,
         financePersonnel,
-        donorName: donorName.trim(),
-        amountDonated: parseFloat(amountDonated),
-        currency,
         projectType,
         projectStatus,
-        activities: activitiesData
+      }
+      
+      // Include activities if project has activities
+      if (activities && activities.length > 0) {
+        projectData.activities = activitiesData
       }
       
       const response = await axiosInstance.put(
@@ -264,6 +272,7 @@ const EditProject = () => {
         navigate(`/program/projects/${id}`)
       }
     } catch (error) {
+      console.error('Error updating project:', error)
       const errorMessage = error.response?.data?.message || 'Failed to update project. Please try again.'
       setError(errorMessage)
     } finally {
@@ -287,10 +296,9 @@ const EditProject = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Edit Project</h1>
-          <p className="text-gray-600">Update project details</p>
+          <p className="text-gray-600">Update project information (non-financial fields only)</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          
           
           {/* Error Message */}
           {error && (
@@ -300,21 +308,68 @@ const EditProject = () => {
           )}
           
           <form onSubmit={handleSubmit}>
-            {/* Basic Information */}
+            {/* Read-only Financial Information */}
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Financial Information (Read-only)</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Project ID *"
-                  placeholder="e.g., PROJ001"
-                  value={projectId}
-                  onChange={(e) => {
-                    setProjectId(e.target.value)
-                    setError('')
-                  }}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Project ID
+                  </label>
+                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    {projectId || 'N/A'}
+                  </div>
+                </div>
                 
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Donor Name
+                  </label>
+                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    {donorName || 'N/A'}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Amount Donated
+                  </label>
+                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    {amountDonated ? `${amountDonated} ${currency}` : 'N/A'}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Currency
+                  </label>
+                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    {currency || 'N/A'}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Total Expense
+                  </label>
+                  <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    {totalExpense ? `${totalExpense} ${currency}` : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-10"></div>
+            
+            {/* Editable Project Information */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Information (Editable)</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <Input
                   label="Project Title *"
                   placeholder="Enter project title"
@@ -324,166 +379,89 @@ const EditProject = () => {
                     setError('')
                   }}
                 />
-              </div>
-              
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value)
-                    setError('')
-                  }}
-                  placeholder="Enter project description"
-                  rows="3"
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-            </div>
-            
-            {/* Dates */}
-            <div className="mb-8">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Start Date *
+                    Description
                   </label>
-                  <input
+                  <textarea
+                    value={description}
+                    onChange={(e) => {
+                      setDescription(e.target.value)
+                      setError('')
+                    }}
+                    placeholder="Enter project description"
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Start Date *"
                     type="date"
                     value={startDate}
                     onChange={(e) => {
                       setStartDate(e.target.value)
                       setError('')
                     }}
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    End Date *
-                  </label>
-                  <input
+                  
+                  <Input
+                    label="End Date *"
                     type="date"
                     value={endDate}
                     onChange={(e) => {
                       setEndDate(e.target.value)
                       setError('')
                     }}
-                    min={startDate}
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
-              </div>
-            </div>
-            
-            {/* Finance Personnel */}
-            <div className="mb-8">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Finance Personnel *
-                </label>
-                {loadingFinanceUsers ? (
-                  <div className="text-gray-500">Loading finance personnel...</div>
-                ) : financeUsers.length === 0 ? (
-                  <div className="text-red-500">No verified and approved finance personnel available</div>
-                ) : (
-                  <select
-                    value={financePersonnel}
-                    onChange={(e) => {
-                      setFinancePersonnel(e.target.value)
-                      setError('')
-                    }}
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="">Select finance personnel</option>
-                    {financeUsers.map(user => (
-                      <option key={user._id} value={user._id}>
-                        {user.name} ({user.email})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-            
-            {/* Divider */}
-            <div className="border-t border-gray-200 my-10"></div>
-            
-            {/* Donor Information */}
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Funding Information</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                <Input
-                  label="Donor Name *"
-                  placeholder="Enter donor name"
-                  value={donorName}
-                  onChange={(e) => {
-                    setDonorName(e.target.value)
-                    setError('')
-                  }}
-                />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Amount Donated *"
-                    type="number"
-                    placeholder="0.00"
-                    value={amountDonated}
-                    onChange={(e) => {
-                      setAmountDonated(e.target.value)
-                      setError('')
-                    }}
-                    min="0"
-                    step="0.01"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Finance Personnel *
+                    </label>
+                    <select
+                      value={financePersonnel}
+                      onChange={(e) => {
+                        setFinancePersonnel(e.target.value)
+                        setError('')
+                      }}
+                      disabled={loadingFinanceUsers}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">Select finance personnel</option>
+                      {financeUsers.map((user) => (
+                        <option key={user._id} value={user._id}>
+                          {user.name} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                    {loadingFinanceUsers && (
+                      <p className="mt-1 text-xs text-gray-500">Loading finance personnel...</p>
+                    )}
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Currency *
+                      Project Type *
                     </label>
                     <select
-                      value={currency}
+                      value={projectType}
                       onChange={(e) => {
-                        setCurrency(e.target.value)
+                        setProjectType(e.target.value)
                         setError('')
                       }}
                       className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                      <option value="BTN">BTN</option>
+                      <option value="Education">Education</option>
+                      <option value="Welfare">Welfare</option>
+                      <option value="Youth">Youth</option>
+                      <option value="other">Other</option>
                     </select>
                   </div>
-                </div>
-                  
-              </div>
-            </div>
-            
-            {/* Project Type and Status */}
-            <div className="mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Project Type *
-                  </label>
-                  <select
-                    value={projectType}
-                    onChange={(e) => {
-                      setProjectType(e.target.value)
-                      setError('')
-                    }}
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="Education">Education</option>
-                    <option value="Welfare">Welfare</option>
-                    <option value="Youth">Youth</option>
-                    <option value="other">other</option>
-                  </select>
                 </div>
                 
                 <div>
@@ -509,36 +487,28 @@ const EditProject = () => {
             {/* Divider */}
             <div className="border-t border-gray-200 my-10"></div>
             
-            {/* Activities */}
+            {/* Activities - Non-financial Fields Only */}
             <div className="mb-8">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Activities</h2>
-                <button
-                  type="button"
-                  onClick={addActivity}
-                  className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-                >
-                  + Add Activity
-                </button>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Activities - Information (Editable)</h2>
               
               {activities.map((activity, activityIndex) => (
                 <div key={activityIndex} className="mb-6 p-4 border border-gray-200 rounded-lg">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-md font-medium text-gray-800">Activity {activityIndex + 1}</h3>
-                    <button
-                      type="button"
-                      onClick={() => removeActivity(activityIndex)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
+                  <div className="mb-4">
+                    <h3 className="text-md font-medium text-gray-800 mb-2">Activity {activityIndex + 1}</h3>
+                    
+                    {/* Read-only financial info */}
+                    <div className="mb-3 p-2 bg-gray-50 rounded-md">
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div><span className="font-medium">Budget:</span> {activity.budget ? `${activity.budget} ${currency}` : 'N/A'}</div>
+                        <div><span className="font-medium">Expense:</span> {activity.expense ? `${activity.expense} ${currency}` : 'N/A'}</div>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <Input
                       label="Activity ID"
-                      placeholder="e.g., ACT001"
+                      placeholder="Enter activity ID"
                       value={activity.activityId}
                       onChange={(e) => updateActivity(activityIndex, 'activityId', e.target.value)}
                     />
@@ -559,106 +529,85 @@ const EditProject = () => {
                       value={activity.description}
                       onChange={(e) => updateActivity(activityIndex, 'description', e.target.value)}
                       placeholder="Enter activity description"
-                      rows="2"
+                      rows={3}
                       className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <Input
-                      label="Activity Budget"
-                      type="number"
-                      placeholder="0.00"
-                      value={activity.budget}
-                      onChange={(e) => updateActivity(activityIndex, 'budget', e.target.value)}
-                      min="0"
-                      step="0.01"
-                    />
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Activity Status
-                      </label>
-                      <select
-                        value={activity.projectStatus || 'Not Started'}
-                        onChange={(e) => updateActivity(activityIndex, 'projectStatus', e.target.value)}
-                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                      >
-                        <option value="Not Started">Not Started</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Completed">Completed</option>
-                      </select>
-                    </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Activity Status
+                    </label>
+                    <select
+                      value={activity.projectStatus}
+                      onChange={(e) => updateActivity(activityIndex, 'projectStatus', e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    >
+                      <option value="Not Started">Not Started</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
                   </div>
                   
                   {/* Sub-Activities */}
-                  <div className="ml-4 border-l-2 border-gray-200 pl-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-sm font-medium text-gray-700">Sub-Activities</h4>
-                      <button
-                        type="button"
-                        onClick={() => addSubActivity(activityIndex)}
-                        className="px-3 py-1 text-xs font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-                      >
-                        + Add Sub-Activity
-                      </button>
+                  {activity.subActivities && activity.subActivities.length > 0 && (
+                    <div className="ml-4 border-l-2 border-gray-200 pl-4 mt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Sub-Activities</h4>
+                      
+                      {activity.subActivities.map((subActivity, subIndex) => (
+                        <div key={subIndex} className="mb-3 p-3 bg-gray-50 rounded-md">
+                          <div className="mb-2">
+                            <span className="text-xs text-gray-600 font-medium">Sub-Activity {subIndex + 1}</span>
+                            {/* Read-only financial info */}
+                            <div className="mt-1 text-xs text-gray-600 space-y-1">
+                              <div><span className="font-medium">Budget:</span> {subActivity.budget ? `${subActivity.budget} ${currency}` : 'N/A'}</div>
+                              <div><span className="font-medium">Expense:</span> {subActivity.expense ? `${subActivity.expense} ${currency}` : 'N/A'}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <Input
+                              label="Sub-Activity ID"
+                              placeholder="Enter sub-activity ID"
+                              value={subActivity.subactivityId}
+                              onChange={(e) => updateSubActivity(activityIndex, subIndex, 'subactivityId', e.target.value)}
+                            />
+                            
+                            <Input
+                              label="Sub-Activity Name"
+                              placeholder="Enter sub-activity name"
+                              value={subActivity.name}
+                              onChange={(e) => updateSubActivity(activityIndex, subIndex, 'name', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    
-                    {activity.subActivities.map((subActivity, subIndex) => (
-                      <div key={subIndex} className="mb-3 p-3 bg-gray-50 rounded-md">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-xs text-gray-600">Sub-Activity {subIndex + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeSubActivity(activityIndex, subIndex)}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                          <Input
-                            label="Sub-Activity ID"
-                            placeholder="e.g., SUB001"
-                            value={subActivity.subactivityId || ''}
-                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'subactivityId', e.target.value)}
-                          />
-                          
-                          <Input
-                            label="Name"
-                            placeholder="Enter sub-activity name"
-                            value={subActivity.name}
-                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'name', e.target.value)}
-                          />
-                        </div>
-                          
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Input
-                            label="Budget"
-                            type="number"
-                            placeholder="0.00"
-                            value={subActivity.budget}
-                            onChange={(e) => updateSubActivity(activityIndex, subIndex, 'budget', e.target.value)}
-                            min="0"
-                            step="0.01"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  )}
                 </div>
               ))}
               
               {activities.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No activities added. Click "Add Activity" to get started.
+                  No activities found in this project.
                 </div>
               )}
             </div>
             
             {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
+            <div className="flex justify-end space-x-4 items-center">
+              {/* Debug info - show why button is disabled */}
+              {!isFormValid() && !saving && (
+                <div className="text-sm text-gray-500 mr-4">
+                  {!title.trim() && <span>Title required</span>}
+                  {title.trim() && !startDate && <span>Start date required</span>}
+                  {title.trim() && startDate && !endDate && <span>End date required</span>}
+                  {title.trim() && startDate && endDate && !financePersonnel && <span>Finance personnel required</span>}
+                  {title.trim() && startDate && endDate && financePersonnel && new Date(endDate) < new Date(startDate) && (
+                    <span>End date must be after start date</span>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => navigate(`/program/projects/${id}`)}
@@ -684,4 +633,3 @@ const EditProject = () => {
 }
 
 export default EditProject
-

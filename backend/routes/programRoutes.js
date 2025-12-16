@@ -6,13 +6,13 @@ const {
   getAllProjects, 
   getProjectById, 
   getActivityById,
-  updateProject,
   deleteProject,
   deleteActivity,
   deleteSubActivity,
   createReallocationRequest,
   getAllReallocationRequests,
-  getReallocationRequestById
+  getReallocationRequestById,
+  updateProject
 } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
 
@@ -29,6 +29,9 @@ router.get("/projects", getAllProjects);
 // Get project by ID
 router.get("/projects/:id", getProjectById);
 
+// Update project (non-financial fields only)
+router.put("/projects/:id", updateProject);
+
 // Get activity by ID (within a project)
 router.get("/projects/:projectId/activities/:activityId", getActivityById);
 
@@ -40,9 +43,6 @@ router.delete("/projects/:projectId/activities/:activityId/subactivities/:subact
 
 // Create project
 router.post("/projects", createProject);
-
-// Update project
-router.put("/projects/:id", updateProject);
 
 // Delete project
 router.delete("/projects/:id", deleteProject);
