@@ -978,6 +978,7 @@ const deleteProject = async (req, res) => {
       message: "Server error. Please try again later.",
     });
   }
+
 };
 
 const deleteActivity = async (req, res) => {
@@ -1335,6 +1336,15 @@ const deleteSubActivity = async (req, res) => {
       message: "Server error. Please try again later.",
     });
   }
+
+  await logActivity({
+    user: req.user,
+    action: "SUBACTIVITY_DELETED",
+    entityType: "subactivity",
+    entityId: subactivityId,
+    metadata: { projectId, activityId },
+  });
+
 };
 
 // ==================== REALLOCATION REQUEST FUNCTIONS ====================
@@ -1709,6 +1719,7 @@ const createReallocationRequest = async (req, res) => {
 
     await session.commitTransaction();
 
+
     res.status(201).json({
       success: true,
       message: "Reallocation request created successfully",
@@ -1737,6 +1748,7 @@ const createReallocationRequest = async (req, res) => {
   } finally {
     session.endSession();
   }
+
 };
 
 const getAllReallocationRequests = async (req, res) => {

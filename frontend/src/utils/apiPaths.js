@@ -24,6 +24,7 @@ export const API_PATHS = {
     ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
     DASHBOARD_DATA: `${API_BASE}/admin/dashboard`,
   },
+
   // Program endpoints
   PROGRAM: {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
@@ -63,7 +64,8 @@ export const API_PATHS = {
   },
   // Shared/Report endpoints (available to all authenticated users)
   REPORTS: {
-    DOWNLOAD_PROJECT: (projectId) => `${API_BASE}/shared/reports/project/${projectId}`,
+    DOWNLOAD_PROJECT: (projectId) =>
+      `${API_BASE}/shared/reports/project/${projectId}`,
     DOWNLOAD_ACTIVITY: (projectId, activityId) =>
       `${API_BASE}/shared/reports/activity/${projectId}/${activityId}`,
     DOWNLOAD_SUBACTIVITY: (projectId, activityId, subactivityId) =>
