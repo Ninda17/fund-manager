@@ -878,6 +878,22 @@ const updateProject = async (req, res) => {
     // Use the saved project for response
     const savedProject = updatedProject;
 
+    // Check utilization and send notifications (non-blocking)
+    try {
+      const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
+      // Get project as plain object for utilization check
+      const projectForCheck = await Project.findById(id).lean();
+      if (projectForCheck) {
+        // Run in background - don't wait for it
+        checkProjectItemsUtilization(projectForCheck).catch(err => {
+          console.error("Error checking utilization:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error setting up utilization check:", error);
+      // Don't fail the request if notification fails
+    }
+
     // Project will be automatically decrypted by post-save hook
     res.status(200).json({
       success: true,
@@ -1083,6 +1099,20 @@ const deleteActivity = async (req, res) => {
       { $set: { totalExpense: encryptedTotalExpense } }
     );
 
+    // Check utilization and send notifications (non-blocking)
+    try {
+      const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
+      const projectForCheck = await Project.findById(projectId).lean();
+      if (projectForCheck) {
+        checkProjectItemsUtilization(projectForCheck).catch(err => {
+          console.error("Error checking utilization:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error setting up utilization check:", error);
+      // Don't fail the request if notification fails
+    }
+
     res.status(200).json({
       success: true,
       message: "Activity deleted successfully",
@@ -1267,6 +1297,20 @@ const deleteSubActivity = async (req, res) => {
       { _id: new mongoose.Types.ObjectId(projectId) },
       { $set: updates }
     );
+
+    // Check utilization and send notifications (non-blocking)
+    try {
+      const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
+      const projectForCheck = await Project.findById(projectId).lean();
+      if (projectForCheck) {
+        checkProjectItemsUtilization(projectForCheck).catch(err => {
+          console.error("Error checking utilization:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error setting up utilization check:", error);
+      // Don't fail the request if notification fails
+    }
 
     res.status(200).json({
       success: true,

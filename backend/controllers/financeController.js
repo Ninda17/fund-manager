@@ -543,6 +543,44 @@ const approveReallocationRequest = async (req, res) => {
 
     await session.commitTransaction();
 
+    // Check utilization and send notifications for affected projects (non-blocking)
+    try {
+      const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
+      
+      // Check source project if it exists
+      if (request.sourceProjectId) {
+        const sourceProject = await Project.findById(request.sourceProjectId).lean();
+        if (sourceProject) {
+          checkProjectItemsUtilization(sourceProject).catch(err => {
+            console.error("Error checking source project utilization:", err);
+          });
+        }
+      }
+      
+      // Check destination project if it exists
+      if (request.destinationProjectId) {
+        const destProject = await Project.findById(request.destinationProjectId).lean();
+        if (destProject) {
+          checkProjectItemsUtilization(destProject).catch(err => {
+            console.error("Error checking destination project utilization:", err);
+          });
+        }
+      }
+      
+      // Check project for activity/subactivity reallocations
+      if (request.projectId) {
+        const project = await Project.findById(request.projectId).lean();
+        if (project) {
+          checkProjectItemsUtilization(project).catch(err => {
+            console.error("Error checking project utilization:", err);
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error setting up utilization check after reallocation:", error);
+      // Don't fail the request if notification fails
+    }
+
     // Populate before sending response
     await request.populate("requestedBy", "name email");
     await request.populate("sourceProjectId", "projectId title");
@@ -1284,6 +1322,18 @@ const updateProject = async (req, res) => {
         success: false,
         message: "Project not found after update",
       });
+    }
+
+    // Check utilization and send notifications (non-blocking)
+    try {
+      const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
+      // Run in background - don't wait for it
+      checkProjectItemsUtilization(savedProject).catch(err => {
+        console.error("Error checking utilization:", err);
+      });
+    } catch (error) {
+      console.error("Error setting up utilization check:", error);
+      // Don't fail the request if notification fails
     }
 
     // Decrypt fields for response

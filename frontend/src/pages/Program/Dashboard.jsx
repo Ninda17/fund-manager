@@ -342,22 +342,11 @@ const Dashboard = () => {
                   </thead>
                   <tbody>
                     {recentProjects.map((project, index) => {
-                      const statusColor = getStatusColor(project.projectStatus);
                       return (
                         <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-4 text-sm text-gray-900">{project.projectId}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{project.title}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-3 py-1 rounded-md text-xs font-medium"
-                              style={{
-                                backgroundColor: statusColor.bg,
-                                color: statusColor.text
-                              }}
-                            >
-                              {project.projectStatus}
-                            </span>
-                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{project.projectStatus}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
                             {formatTaskDate(project.createdAt)}
                           </td>
@@ -390,7 +379,6 @@ const Dashboard = () => {
                   </thead>
                   <tbody>
                     {recentReallocations.map((request, index) => {
-                      const statusColor = getStatusColor(request.status);
                       return (
                         <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-4 text-sm text-gray-900">
@@ -399,17 +387,7 @@ const Dashboard = () => {
                           <td className="py-3 px-4 text-sm text-gray-900">
                             {formatCurrency(request.amount, request.sourceCurrency)}
                           </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-3 py-1 rounded-md text-xs font-medium"
-                              style={{
-                                backgroundColor: statusColor.bg,
-                                color: statusColor.text
-                              }}
-                            >
-                              {request.status}
-                            </span>
-                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{request.status}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
                             {formatTaskDate(request.createdAt)}
                           </td>

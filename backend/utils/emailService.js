@@ -83,8 +83,107 @@ const sendVerificationEmail = async (email, verificationToken) => {
   }
 };
 
+// Send utilization warning email (90% threshold)
+const sendUtilizationWarningEmail = async (email, programName, itemType, itemName, itemId, utilization, budget, expense, currency) => {
+  try {
+    const transporter = createTransporter();
+
+    const currencySymbols = {
+      USD: '$',
+      EUR: '€',
+      BTN: 'Nu.',
+    };
+    const symbol = currencySymbols[currency] || currency;
+    const formattedBudget = `${symbol}${budget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formattedExpense = `${symbol}${expense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: `⚠️ Utilization Warning: ${itemType} "${itemName}" Reached ${utilization.toFixed(1)}% - Tarayana Fund Tracker`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #f59e0b;">Utilization Warning</h2>
+          <p>Dear ${programName},</p>
+          <p>This is to inform you that your ${itemType.toLowerCase()} has reached <strong>${utilization.toFixed(1)}%</strong> utilization.</p>
+          
+          <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #92400e;">${itemType} Details:</h3>
+            <p><strong>Name:</strong> ${itemName}</p>
+            <p><strong>ID:</strong> ${itemId}</p>
+            <p><strong>Budget:</strong> ${formattedBudget}</p>
+            <p><strong>Expense:</strong> ${formattedExpense}</p>
+            <p><strong>Utilization:</strong> ${utilization.toFixed(1)}%</p>
+          </div>
+          
+          <p style="color: #92400e;"><strong>Please review your expenses and budget allocation.</strong></p>
+          <p style="color: #666; font-size: 12px; margin-top: 20px;">This is an automated notification from Tarayana Fund Tracker.</p>
+        </div>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending utilization warning email:", error);
+    throw new Error("Failed to send utilization warning email");
+  }
+};
+
+// Send utilization exceeded email (100%+ threshold)
+const sendUtilizationExceededEmail = async (email, programName, itemType, itemName, itemId, utilization, budget, expense, currency) => {
+  try {
+    const transporter = createTransporter();
+
+    const currencySymbols = {
+      USD: '$',
+      EUR: '€',
+      BTN: 'Nu.',
+    };
+    const symbol = currencySymbols[currency] || currency;
+    const formattedBudget = `${symbol}${budget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formattedExpense = `${symbol}${expense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const overage = expense - budget;
+    const formattedOverage = `${symbol}${overage.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: `🚨 URGENT: Budget Exceeded - ${itemType} "${itemName}" - Tarayana Fund Tracker`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626;">Budget Exceeded - Immediate Action Required</h2>
+          <p>Dear ${programName},</p>
+          <p><strong style="color: #dc2626;">URGENT:</strong> Your ${itemType.toLowerCase()} has exceeded its budget allocation.</p>
+          
+          <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #991b1b;">${itemType} Details:</h3>
+            <p><strong>Name:</strong> ${itemName}</p>
+            <p><strong>ID:</strong> ${itemId}</p>
+            <p><strong>Budget:</strong> ${formattedBudget}</p>
+            <p><strong>Expense:</strong> ${formattedExpense}</p>
+            <p><strong>Overage:</strong> <span style="color: #dc2626; font-weight: bold;">${formattedOverage}</span></p>
+            <p><strong>Utilization:</strong> <span style="color: #dc2626; font-weight: bold;">${utilization.toFixed(1)}%</span></p>
+          </div>
+          
+          <p style="color: #991b1b;"><strong>Immediate action is required. Please review your expenses and take necessary corrective measures.</strong></p>
+          <p style="color: #666; font-size: 12px; margin-top: 20px;">This is an automated notification from Tarayana Fund Tracker.</p>
+        </div>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending utilization exceeded email:", error);
+    throw new Error("Failed to send utilization exceeded email");
+  }
+};
+
 module.exports = {
   sendOTPEmail,
   sendVerificationEmail,
+  sendUtilizationWarningEmail,
+  sendUtilizationExceededEmail,
 };
 

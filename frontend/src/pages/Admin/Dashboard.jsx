@@ -86,26 +86,6 @@ const Dashboard = () => {
       default: return { bg: '#E5E7EB', text: '#6B7280' };
     }
   };
-
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'admin': return { bg: '#FEE2E2', text: '#DC2626' };
-      case 'finance': return { bg: '#DBEAFE', text: '#2563EB' };
-      case 'program': return { bg: '#D1FAE5', text: '#059669' };
-      default: return { bg: '#E5E7EB', text: '#6B7280' };
-    }
-  };
-
-  const getApprovalColor = (status) => {
-    switch (status) {
-      case 'approved': return { bg: '#D1FAE5', text: '#059669' };
-      case 'pending': return { bg: '#FED7AA', text: '#EA580C' };
-      case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' };
-      default: return { bg: '#E5E7EB', text: '#6B7280' };
-    }
-  };
-
-  // Format date like "17th Mar 2025"
   const formatTaskDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -333,22 +313,11 @@ const Dashboard = () => {
                   </thead>
                   <tbody>
                     {recentProjects.map((project, index) => {
-                      const statusColor = getStatusColor(project.projectStatus);
                       return (
                         <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-4 text-sm text-gray-900">{project.projectId}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{project.title}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-3 py-1 rounded-md text-xs font-medium"
-                              style={{
-                                backgroundColor: statusColor.bg,
-                                color: statusColor.text
-                              }}
-                            >
-                              {project.projectStatus}
-                            </span>
-                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{project.projectStatus}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
                             {formatTaskDate(project.createdAt)}
                           </td>
@@ -381,34 +350,12 @@ const Dashboard = () => {
                   </thead>
                   <tbody>
                     {recentUsers.map((user, index) => {
-                      const roleColor = getRoleColor(user.role);
-                      const approvalColor = getApprovalColor(user.isApproved);
                       return (
                         <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-4 text-sm text-gray-900">{user.name}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{user.email}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-3 py-1 rounded-md text-xs font-medium"
-                              style={{
-                                backgroundColor: roleColor.bg,
-                                color: roleColor.text
-                              }}
-                            >
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-3 py-1 rounded-md text-xs font-medium"
-                              style={{
-                                backgroundColor: approvalColor.bg,
-                                color: approvalColor.text
-                              }}
-                            >
-                              {user.isApproved}
-                            </span>
-                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{user.role}</td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{user.isApproved}</td>
                         </tr>
                       );
                     })}
