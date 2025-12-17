@@ -2,6 +2,7 @@ const Project = require("../models/projectModel");
 const ReallocationRequest = require("../models/reallocationRequestModel");
 const mongoose = require("mongoose");
 const path = require("path");
+
 console
 // Helper function to build financePersonnel query that handles both ObjectId and string formats
 const buildFinancePersonnelQuery = (userId) => {
@@ -543,6 +544,7 @@ const approveReallocationRequest = async (req, res) => {
 
     await session.commitTransaction();
 
+
     // Populate before sending response
     await request.populate("requestedBy", "name email");
     await request.populate("sourceProjectId", "projectId title");
@@ -636,6 +638,7 @@ const rejectReallocationRequest = async (req, res) => {
     await request.save({ session });
 
     await session.commitTransaction();
+
 
     // Populate before sending response
     await request.populate("requestedBy", "name email");
@@ -1369,6 +1372,7 @@ const updateProject = async (req, res) => {
       message: "Server error. Please try again later.",
     });
   }
+
 };
 
 module.exports = {
