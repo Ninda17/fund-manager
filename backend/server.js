@@ -25,8 +25,9 @@ connectDB();
 //middleware
 app.use(express.json());
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve static files from uploads directory (deprecated - using Cloudinary now)
+// Commented out since we're using Cloudinary for image storage
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 //routes
 app.use("/api/auth", authRoutes);

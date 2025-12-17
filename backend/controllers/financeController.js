@@ -530,7 +530,8 @@ const approveReallocationRequest = async (req, res) => {
     }
 
     // Update request status
-    const evidenceImageUrl = `/uploads/${req.file.filename}`;
+    // Cloudinary returns the URL in req.file.secure_url or req.file.url
+    const evidenceImageUrl = req.file.secure_url || req.file.url;
     request.status = "approved";
     request.approvedBy = req.user.id;
     request.approvedAt = new Date();
