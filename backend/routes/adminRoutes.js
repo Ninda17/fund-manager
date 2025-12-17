@@ -8,6 +8,7 @@ const {
   getProjectById,
   getActivityById,
   getAllProjectsAdmin,
+  getDashboardData,
 } = require("../controllers/adminController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -35,6 +36,8 @@ router.get("/projects/:id", getProjectById);
 // Get activity by ID (within a project)
 router.get("/projects/:projectId/activities/:activityId", getActivityById);
 
+// Get dashboard data
+router.get("/dashboard", getDashboardData);
 
 module.exports = router;
 

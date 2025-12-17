@@ -1767,6 +1767,162 @@ const getReallocationRequestById = async (req, res) => {
   }
 };
 
+const getDashboardData = async (req, res) => {
+  try {
+    const { decrypt } = require("../utils/encryption");
+
+    // Fetch Statistics for logged-in program user
+    const totalProjects = await Project.countDocuments({
+      programPersonnel: req.user.id,
+    });
+    const totalReallocations = await ReallocationRequest.countDocuments({
+      requestedBy: req.user.id,
+    });
+
+    // Get all projects created by this user to calculate underspent/overspent
+    const allProjects = await Project.find({
+      programPersonnel: req.user.id,
+    })
+      .select("amountDonated totalExpense")
+      .lean();
+
+    let underspentProjects = 0;
+    let overspentProjects = 0;
+
+    allProjects.forEach((project) => {
+      let amountDonated = project.amountDonated;
+      let totalExpense = project.totalExpense;
+
+      // Decrypt if encrypted
+      if (amountDonated && typeof amountDonated === "string" && amountDonated.includes(":")) {
+        amountDonated = parseFloat(decrypt(amountDonated)) || 0;
+      }
+      if (totalExpense && typeof totalExpense === "string" && totalExpense.includes(":")) {
+        totalExpense = parseFloat(decrypt(totalExpense)) || 0;
+      }
+
+      // Ensure they are numbers
+      amountDonated = typeof amountDonated === "number" ? amountDonated : parseFloat(amountDonated) || 0;
+      totalExpense = typeof totalExpense === "number" ? totalExpense : parseFloat(totalExpense) || 0;
+
+      if (totalExpense < amountDonated) {
+        underspentProjects++;
+      } else if (totalExpense > amountDonated) {
+        overspentProjects++;
+      }
+    });
+
+    // Reallocation Status Distribution (for this user's requests)
+    const reallocationStatuses = ["pending", "approved", "rejected"];
+    const reallocationStatusRaw = await ReallocationRequest.aggregate([
+      {
+        $match: { requestedBy: new mongoose.Types.ObjectId(req.user.id) },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const reallocationStatusDistribution = reallocationStatuses.reduce((acc, status) => {
+      acc[status] =
+        reallocationStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // Project Status Distribution (for this user's projects)
+    const projectStatuses = ["Not Started", "In Progress", "Completed"];
+    const projectStatusRaw = await Project.aggregate([
+      {
+        $match: { programPersonnel: new mongoose.Types.ObjectId(req.user.id) },
+      },
+      {
+        $group: {
+          _id: "$projectStatus",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const projectStatusDistribution = projectStatuses.reduce((acc, status) => {
+      acc[status] =
+        projectStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // Fetch recent 5 projects created by this user
+    const recentProjects = await Project.find({
+      programPersonnel: req.user.id,
+    })
+      .select("projectId title projectStatus createdAt")
+      .populate("financePersonnel", "name email")
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    // Decrypt project fields
+    const decryptedRecentProjects = recentProjects.map((project) => {
+      const p = { ...project };
+      if (p.title && typeof p.title === "string" && p.title.includes(":")) {
+        p.title = decrypt(p.title);
+      }
+      return p;
+    });
+
+    // Fetch recent 5 reallocation requests made by this user
+    const recentReallocations = await ReallocationRequest.find({
+      requestedBy: req.user.id,
+    })
+      .select("requestType status amount sourceCurrency destinationCurrency createdAt")
+      .populate("sourceProjectId", "projectId title")
+      .populate("destinationProjectId", "projectId title")
+      .populate("projectId", "projectId title")
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    // Decrypt project titles in reallocation requests
+    const decryptedRecentReallocations = recentReallocations.map((request) => {
+      const r = { ...request };
+      if (r.sourceProjectId && r.sourceProjectId.title && typeof r.sourceProjectId.title === "string" && r.sourceProjectId.title.includes(":")) {
+        r.sourceProjectId.title = decrypt(r.sourceProjectId.title);
+      }
+      if (r.destinationProjectId && r.destinationProjectId.title && typeof r.destinationProjectId.title === "string" && r.destinationProjectId.title.includes(":")) {
+        r.destinationProjectId.title = decrypt(r.destinationProjectId.title);
+      }
+      if (r.projectId && r.projectId.title && typeof r.projectId.title === "string" && r.projectId.title.includes(":")) {
+        r.projectId.title = decrypt(r.projectId.title);
+      }
+      return r;
+    });
+
+    res.status(200).json({
+      success: true,
+      statistics: {
+        totalProjects,
+        totalReallocations,
+        underspentProjects,
+        overspentProjects,
+      },
+      charts: {
+        reallocationStatusDistribution,
+        projectStatusDistribution,
+      },
+      recentProjects: decryptedRecentProjects,
+      recentReallocations: decryptedRecentReallocations,
+    });
+  } catch (error) {
+    console.error("Get dashboard data error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
@@ -1780,4 +1936,5 @@ module.exports = {
   createReallocationRequest,
   getAllReallocationRequests,
   getReallocationRequestById,
+  getDashboardData,
 };

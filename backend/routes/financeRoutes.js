@@ -9,6 +9,7 @@ const {
   getProjectById,
   getActivityById,
   updateProject,
+  getDashboardData,
 } = require("../controllers/financeController");
 const { protect, financeOnly } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -43,6 +44,9 @@ router.put("/projects/:id", updateProject);
 
 // Get activity by ID
 router.get("/projects/:projectId/activities/:activityId", getActivityById);
+
+// Get dashboard data
+router.get("/dashboard", getDashboardData);
 
 module.exports = router;
 

@@ -1,5 +1,6 @@
 const User = require("../models/userModel");
-const Project = require("../models/projectModel")
+const Project = require("../models/projectModel");
+const ReallocationRequest = require("../models/reallocationRequestModel");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -494,6 +495,129 @@ const getActivityById = async (req, res) => {
   }
 };
 
+const getDashboardData = async (req, res) => {
+  try {
+    const { decrypt } = require("../utils/encryption");
+
+    // Fetch Statistics
+    const totalProjects = await Project.countDocuments();
+    const totalReallocations = await ReallocationRequest.countDocuments();
+
+    // Get all projects to calculate underspent/overspent (need to decrypt amounts)
+    const allProjects = await Project.find()
+      .select("amountDonated totalExpense")
+      .lean();
+
+    let underspentProjects = 0;
+    let overspentProjects = 0;
+
+    allProjects.forEach((project) => {
+      let amountDonated = project.amountDonated;
+      let totalExpense = project.totalExpense;
+
+      // Decrypt if encrypted
+      if (amountDonated && typeof amountDonated === "string" && amountDonated.includes(":")) {
+        amountDonated = parseFloat(decrypt(amountDonated)) || 0;
+      }
+      if (totalExpense && typeof totalExpense === "string" && totalExpense.includes(":")) {
+        totalExpense = parseFloat(decrypt(totalExpense)) || 0;
+      }
+
+      // Ensure they are numbers
+      amountDonated = typeof amountDonated === "number" ? amountDonated : parseFloat(amountDonated) || 0;
+      totalExpense = typeof totalExpense === "number" ? totalExpense : parseFloat(totalExpense) || 0;
+
+      if (totalExpense < amountDonated) {
+        underspentProjects++;
+      } else if (totalExpense > amountDonated) {
+        overspentProjects++;
+      }
+    });
+
+    // Reallocation Status Distribution
+    const reallocationStatuses = ["pending", "approved", "rejected"];
+    const reallocationStatusRaw = await ReallocationRequest.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const reallocationStatusDistribution = reallocationStatuses.reduce((acc, status) => {
+      acc[status] =
+        reallocationStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // Project Status Distribution
+    const projectStatuses = ["Not Started", "In Progress", "Completed"];
+    const projectStatusRaw = await Project.aggregate([
+      {
+        $group: {
+          _id: "$projectStatus",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const projectStatusDistribution = projectStatuses.reduce((acc, status) => {
+      acc[status] =
+        projectStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // Fetch recent 5 projects
+    const recentProjects = await Project.find()
+      .select("projectId title projectStatus createdAt")
+      .populate("financePersonnel", "name email")
+      .populate("programPersonnel", "name email")
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    // Decrypt project fields
+    const decryptedRecentProjects = recentProjects.map((project) => {
+      const p = { ...project };
+      if (p.title && typeof p.title === "string" && p.title.includes(":")) {
+        p.title = decrypt(p.title);
+      }
+      return p;
+    });
+
+    // Fetch recent 5 users
+    const recentUsers = await User.find()
+      .select("name email role isApproved createdAt")
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      statistics: {
+        totalProjects,
+        totalReallocations,
+        underspentProjects,
+        overspentProjects,
+      },
+      charts: {
+        reallocationStatusDistribution,
+        projectStatusDistribution,
+      },
+      recentProjects: decryptedRecentProjects,
+      recentUsers,
+    });
+  } catch (error) {
+    console.error("Get dashboard data error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -502,4 +626,5 @@ module.exports = {
   getAllProjectsAdmin,
   getProjectById,
   getActivityById,
+  getDashboardData,
 };
