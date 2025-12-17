@@ -1,6 +1,6 @@
 const User = require("../models/userModel");
 const Project = require("../models/projectModel");
-const ReallocationRequest = require("../models/reallocationRequestModel")
+const ReallocationRequest = require("../models/reallocationRequestModel");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -495,148 +495,125 @@ const getActivityById = async (req, res) => {
   }
 };
 
-// controllers/adminController.js
-const getAllReallocationRequestsForAdmin = async (req, res) => {
+const getDashboardData = async (req, res) => {
   try {
-    const { 
-      status, 
-      requestedBy,
-      approvedBy,
-      sourceProjectId,
-      destinationProjectId,
-      startDate,
-      endDate,
-      page = 1,
-      limit = 10
-    } = req.query;
+    const { decrypt } = require("../utils/encryption");
 
-    const query = {};
+    // Fetch Statistics
+    const totalProjects = await Project.countDocuments();
+    const totalReallocations = await ReallocationRequest.countDocuments();
 
-    // Status filter
-    if (status && ["pending", "approved", "rejected"].includes(status)) {
-      query.status = status;
-    }
-
-    // Requested by user filter
-    if (requestedBy) {
-      query.requestedBy = requestedBy;
-    }
-
-    // Approved by user filter
-    if (approvedBy) {
-      query.approvedBy = approvedBy;
-    }
-
-    // Source project filter
-    if (sourceProjectId) {
-      query.sourceProjectId = sourceProjectId;
-    }
-
-    // Destination project filter
-    if (destinationProjectId) {
-      query.destinationProjectId = destinationProjectId;
-    }
-
-    // Date range filter
-    if (startDate || endDate) {
-      query.createdAt = {};
-      if (startDate) {
-        query.createdAt.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        query.createdAt.$lte = new Date(endDate);
-      }
-    }
-
-    // Pagination calculation
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
-
-    // Get total count for pagination info
-    const totalRequests = await ReallocationRequest.countDocuments(query);
-
-    // Fetch requests with pagination and population - REMOVE rejectedBy
-    const requests = await ReallocationRequest.find(query)
-      .populate("requestedBy", "name email employeeId department")
-      .populate("sourceProjectId", "projectId title manager client")
-      .populate("destinationProjectId", "projectId title manager client")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email role")
-      // .populate("rejectedBy", "name email role") // REMOVE THIS LINE
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
+    // Get all projects to calculate underspent/overspent (need to decrypt amounts)
+    const allProjects = await Project.find()
+      .select("amountDonated totalExpense")
       .lean();
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalRequests / limitNum);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
+    let underspentProjects = 0;
+    let overspentProjects = 0;
 
-    res.status(200).json({
-      success: true,
-      count: requests.length,
-      total: totalRequests,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        hasNextPage,
-        hasPrevPage,
-        limit: limitNum
+    allProjects.forEach((project) => {
+      let amountDonated = project.amountDonated;
+      let totalExpense = project.totalExpense;
+
+      // Decrypt if encrypted
+      if (amountDonated && typeof amountDonated === "string" && amountDonated.includes(":")) {
+        amountDonated = parseFloat(decrypt(amountDonated)) || 0;
+      }
+      if (totalExpense && typeof totalExpense === "string" && totalExpense.includes(":")) {
+        totalExpense = parseFloat(decrypt(totalExpense)) || 0;
+      }
+
+      // Ensure they are numbers
+      amountDonated = typeof amountDonated === "number" ? amountDonated : parseFloat(amountDonated) || 0;
+      totalExpense = typeof totalExpense === "number" ? totalExpense : parseFloat(totalExpense) || 0;
+
+      if (totalExpense < amountDonated) {
+        underspentProjects++;
+      } else if (totalExpense > amountDonated) {
+        overspentProjects++;
+      }
+    });
+
+    // Reallocation Status Distribution
+    const reallocationStatuses = ["pending", "approved", "rejected"];
+    const reallocationStatusRaw = await ReallocationRequest.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
       },
-      data: requests,
-    });
-  } catch (error) {
-    console.error("Get all reallocation requests for admin error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error. Please try again later.",
-    });
-  }
-};
+    ]);
 
-const getReallocationRequestByIdForAdmin = async (req, res) => {
-  try {
-    const { id } = req.params;
+    const reallocationStatusDistribution = reallocationStatuses.reduce((acc, status) => {
+      acc[status] =
+        reallocationStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
 
-    // Validate ObjectId format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-      // REMOVE THIS LINE:
-      // console.log("Invalid ID format:", id);
-      return res.status(400).json({
-        success: false,
-        message: "Invalid reallocation request ID format",
-      });
-    }
+    // Project Status Distribution
+    const projectStatuses = ["Not Started", "In Progress", "Completed"];
+    const projectStatusRaw = await Project.aggregate([
+      {
+        $group: {
+          _id: "$projectStatus",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
-    // Admin can view any request without user restriction
-    const request = await ReallocationRequest.findById(id)
-      .populate("requestedBy", "name email employeeId department")
-      .populate("sourceProjectId", "projectId title projectManager")
-      .populate("destinationProjectId", "projectId title projectManager")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email")
+    const projectStatusDistribution = projectStatuses.reduce((acc, status) => {
+      acc[status] =
+        projectStatusRaw.find((item) => item._id === status)?.count || 0;
+      return acc;
+    }, {});
+
+    // Fetch recent 5 projects
+    const recentProjects = await Project.find()
+      .select("projectId title projectStatus createdAt")
+      .populate("financePersonnel", "name email")
+      .populate("programPersonnel", "name email")
+      .sort({ createdAt: -1 })
+      .limit(5)
       .lean();
 
+    // Decrypt project fields
+    const decryptedRecentProjects = recentProjects.map((project) => {
+      const p = { ...project };
+      if (p.title && typeof p.title === "string" && p.title.includes(":")) {
+        p.title = decrypt(p.title);
+      }
+      return p;
+    });
 
-    if (!request) {
-      return res.status(404).json({
-        success: false,
-        message: "Reallocation request not found",
-      });
-    }
+    // Fetch recent 5 users
+    const recentUsers = await User.find()
+      .select("name email role isApproved createdAt")
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
 
     res.status(200).json({
       success: true,
-      data: request,
+      statistics: {
+        totalProjects,
+        totalReallocations,
+        underspentProjects,
+        overspentProjects,
+      },
+      charts: {
+        reallocationStatusDistribution,
+        projectStatusDistribution,
+      },
+      recentProjects: decryptedRecentProjects,
+      recentUsers,
     });
   } catch (error) {
-    // Keep error logs for debugging
-    console.error("Admin get reallocation request by ID error:", error);
+    console.error("Get dashboard data error:", error);
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      error: error.message,
     });
   }
 };
@@ -649,6 +626,5 @@ module.exports = {
   getAllProjectsAdmin,
   getProjectById,
   getActivityById,
-  getAllReallocationRequestsForAdmin,
-  getReallocationRequestByIdForAdmin,
+  getDashboardData,
 };

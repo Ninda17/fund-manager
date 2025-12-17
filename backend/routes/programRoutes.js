@@ -12,7 +12,8 @@ const {
   createReallocationRequest,
   getAllReallocationRequests,
   getReallocationRequestById,
-  updateProject
+  updateProject,
+  getDashboardData
 } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
 
@@ -51,6 +52,9 @@ router.delete("/projects/:id", deleteProject);
 router.post("/reallocation-requests", createReallocationRequest);
 router.get("/reallocation-requests", getAllReallocationRequests);
 router.get("/reallocation-requests/:id", getReallocationRequestById);
+
+// Get dashboard data
+router.get("/dashboard", getDashboardData);
 
 module.exports = router;
 

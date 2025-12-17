@@ -21,11 +21,8 @@ export const API_PATHS = {
     USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
     PROJECTS: `${API_BASE}/admin/projects`,
     PROJECT_BY_ID: (id) => `${API_BASE}/admin/projects/${id}`,
-    ACTIVITY_BY_ID: (projectId, activityId) =>
-      `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
-    GET_REALLOCATION: `${API_BASE}/admin/allreallocation`,
-    GET_REALLOCATION_BY_ID: (id) =>
-      `${API_BASE}/admin/allreallocation/${id}`,
+    ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
+    DASHBOARD_DATA: `${API_BASE}/admin/dashboard`,
   },
 
   // Program endpoints
@@ -47,6 +44,7 @@ export const API_PATHS = {
     GET_REALLOCATION_REQUESTS: `${API_BASE}/program/reallocation-requests`,
     GET_REALLOCATION_REQUEST_BY_ID: (id) =>
       `${API_BASE}/program/reallocation-requests/${id}`,
+    DASHBOARD_DATA: `${API_BASE}/program/dashboard`,
   },
   // Finance endpoints
   FINANCE: {
@@ -62,6 +60,7 @@ export const API_PATHS = {
     GET_ACTIVITY_BY_ID: (projectId, activityId) =>
       `${API_BASE}/finance/projects/${projectId}/activities/${activityId}`,
     UPDATE_PROJECT: (id) => `${API_BASE}/finance/projects/${id}`,
+    DASHBOARD_DATA: `${API_BASE}/finance/dashboard`,
   },
   // Shared/Report endpoints (available to all authenticated users)
   REPORTS: {
