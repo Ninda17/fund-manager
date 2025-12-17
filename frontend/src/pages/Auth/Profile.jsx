@@ -85,6 +85,50 @@ const Profile = () => {
     fileInputRef.current?.click()
   }
 
+  // Handle remove profile picture
+  const handleRemovePhoto = async () => {
+    if (!profileImageUrl) return
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await axiosInstance.put(
+        API_PATHS.AUTH.PROFILE,
+        {
+          name: name.trim(),
+          profileImageUrl: null,
+        }
+      )
+
+      if (response.data.success) {
+        // Update user context
+        const updatedUser = {
+          ...user,
+          name: response.data.data.user.name,
+          profileImageUrl: null,
+        }
+        setUser(updatedUser)
+        
+        setProfileImageUrl(null)
+        setProfileImage(null)
+        setSuccess('Profile picture removed successfully!')
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccess('')
+        }, 3000)
+      }
+    } catch (error) {
+      console.error('Remove profile picture error:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to remove profile picture. Please try again.'
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -313,14 +357,26 @@ const Profile = () => {
                     className="hidden"
                   />
                 </div>
-      <div>
-                  <button
-                    type="button"
-                    onClick={handleAvatarClick}
-                    className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-                  >
-                    Change Photo
-                  </button>
+                <div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAvatarClick}
+                      className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+                    >
+                      Change Photo
+                    </button>
+                    {profileImageUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-2">
                     JPG, PNG or GIF. Max size 5MB
                   </p>
