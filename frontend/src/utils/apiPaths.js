@@ -21,8 +21,13 @@ export const API_PATHS = {
     USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
     PROJECTS: `${API_BASE}/admin/projects`,
     PROJECT_BY_ID: (id) => `${API_BASE}/admin/projects/${id}`,
-    ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
+    ACTIVITY_BY_ID: (projectId, activityId) =>
+      `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
+    GET_REALLOCATION: `${API_BASE}/admin/allreallocation`,
+    GET_REALLOCATION_BY_ID: (id) =>
+      `${API_BASE}/admin/allreallocation/${id}`,
   },
+
   // Program endpoints
   PROGRAM: {
     CREATE_PROJECT: `${API_BASE}/program/projects`,
@@ -60,7 +65,8 @@ export const API_PATHS = {
   },
   // Shared/Report endpoints (available to all authenticated users)
   REPORTS: {
-    DOWNLOAD_PROJECT: (projectId) => `${API_BASE}/shared/reports/project/${projectId}`,
+    DOWNLOAD_PROJECT: (projectId) =>
+      `${API_BASE}/shared/reports/project/${projectId}`,
     DOWNLOAD_ACTIVITY: (projectId, activityId) =>
       `${API_BASE}/shared/reports/activity/${projectId}/${activityId}`,
     DOWNLOAD_SUBACTIVITY: (projectId, activityId, subactivityId) =>

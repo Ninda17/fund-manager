@@ -1,5 +1,6 @@
 const User = require("../models/userModel");
-const Project = require("../models/projectModel")
+const Project = require("../models/projectModel");
+const ReallocationRequest = require("../models/reallocationRequestModel")
 
 const getAllUsers = async (req, res) => {
   try {
@@ -494,6 +495,152 @@ const getActivityById = async (req, res) => {
   }
 };
 
+// controllers/adminController.js
+const getAllReallocationRequestsForAdmin = async (req, res) => {
+  try {
+    const { 
+      status, 
+      requestedBy,
+      approvedBy,
+      sourceProjectId,
+      destinationProjectId,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    const query = {};
+
+    // Status filter
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      query.status = status;
+    }
+
+    // Requested by user filter
+    if (requestedBy) {
+      query.requestedBy = requestedBy;
+    }
+
+    // Approved by user filter
+    if (approvedBy) {
+      query.approvedBy = approvedBy;
+    }
+
+    // Source project filter
+    if (sourceProjectId) {
+      query.sourceProjectId = sourceProjectId;
+    }
+
+    // Destination project filter
+    if (destinationProjectId) {
+      query.destinationProjectId = destinationProjectId;
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Pagination calculation
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    // Get total count for pagination info
+    const totalRequests = await ReallocationRequest.countDocuments(query);
+
+    // Fetch requests with pagination and population - REMOVE rejectedBy
+    const requests = await ReallocationRequest.find(query)
+      .populate("requestedBy", "name email employeeId department")
+      .populate("sourceProjectId", "projectId title manager client")
+      .populate("destinationProjectId", "projectId title manager client")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email role")
+      // .populate("rejectedBy", "name email role") // REMOVE THIS LINE
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalRequests / limitNum);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      total: totalRequests,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum
+      },
+      data: requests,
+    });
+  } catch (error) {
+    console.error("Get all reallocation requests for admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+const getReallocationRequestByIdForAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ObjectId format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      // REMOVE THIS LINE:
+      // console.log("Invalid ID format:", id);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid reallocation request ID format",
+      });
+    }
+
+    // Admin can view any request without user restriction
+    const request = await ReallocationRequest.findById(id)
+      .populate("requestedBy", "name email employeeId department")
+      .populate("sourceProjectId", "projectId title projectManager")
+      .populate("destinationProjectId", "projectId title projectManager")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email")
+      .lean();
+
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Reallocation request not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    // Keep error logs for debugging
+    console.error("Admin get reallocation request by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -502,4 +649,6 @@ module.exports = {
   getAllProjectsAdmin,
   getProjectById,
   getActivityById,
+  getAllReallocationRequestsForAdmin,
+  getReallocationRequestByIdForAdmin,
 };

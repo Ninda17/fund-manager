@@ -64,6 +64,23 @@ const UserDetails = () => {
     }
   };
 
+  // Get initials for default avatar
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Function to get user's first name for avatar
+  const getFirstName = (name) => {
+    if (!name) return "User";
+    return name.split(" ")[0];
+  };
+
   if (loading)
     return (
       <DashboardLayout>
@@ -88,8 +105,6 @@ const UserDetails = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            {" "}
-            {/* Increased mb from 2 → 4 */}
             <button
               onClick={() => navigate("/admin/manage-user")}
               className="text-primary hover:text-primary-dark flex items-center text-sm sm:text-base"
@@ -121,11 +136,47 @@ const UserDetails = () => {
 
         {/* Profile & Info Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 flex flex-col md:flex-row md:items-start gap-6">
-          <img
-            src={user.profileImageUrl || "/default-profile.png"}
-            alt={user.name}
-            className="w-28 h-28 rounded-full border-2 border-primary object-cover"
-          />
+          {/* Avatar Section - Updated to match Signup page */}
+          <div className="flex flex-col items-center">
+            {user.profileImageUrl ? (
+              <img
+                src={user.profileImageUrl}
+                alt={user.name}
+                className="w-28 h-28 rounded-full border-2 border-primary object-cover"
+              />
+            ) : (
+              <div className="relative">
+                <div className="w-28 h-28 rounded-full bg-gray-200 flex items-center justify-center relative overflow-hidden">
+                  {/* Default avatar - same as Signup page */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="#18181B"
+                    className="w-16 h-16"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                    />
+                  </svg>
+
+                  {/* Optional: Add user initials as overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-semibold text-gray-700 opacity-0">
+                      {getInitials(user.name)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="mt-3 text-sm text-gray-500 text-center">
+              {user.profileImageUrl ? "Profile Picture" : "Default Avatar"}
+            </p>
+          </div>
+
           <div className="flex-1 space-y-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -199,7 +250,6 @@ const UserDetails = () => {
               {actionLoading ? "Updating..." : "Update User"}
             </button>
 
-            {/* Updated Delete Button */}
             <button
               onClick={handleDelete}
               disabled={actionLoading}

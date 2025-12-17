@@ -8,6 +8,8 @@ const {
   getProjectById,
   getActivityById,
   getAllProjectsAdmin,
+  getAllReallocationRequestsForAdmin,
+  getReallocationRequestByIdForAdmin,
 } = require("../controllers/adminController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -34,6 +36,12 @@ router.get("/projects/:id", getProjectById);
 
 // Get activity by ID (within a project)
 router.get("/projects/:projectId/activities/:activityId", getActivityById);
+
+// get all reallocation
+router.get("/allreallocation", getAllReallocationRequestsForAdmin) 
+
+// Admin-only route to view reallocation request details
+router.get('/allreallocation/:id', getReallocationRequestByIdForAdmin);
 
 
 module.exports = router;

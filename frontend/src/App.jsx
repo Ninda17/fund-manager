@@ -34,6 +34,8 @@ import AllProjectsFinance from "./pages/Finance/AllProjects";
 import ProjectDetailsFinance from "./pages/Finance/ProjectDetails";
 import ActivityDetailsFinance from "./pages/Finance/ActivityDetails";
 import EditProjectFinance from "./pages/Finance/EditProject";
+import AllReallocation from "./pages/Admin/AllReallocation";
+import ReallocationDetail from "./pages/Admin/ReallocationDetail";
 
 const App = () => {
   return (
@@ -51,18 +53,32 @@ const App = () => {
             <Route path="admin/manage-user" element={<ManageUsers />} />
             <Route path="admin/users/:id" element={<UserDetail />} />
             <Route path="admin/allprojects" element={<AllProjects />} />
-            <Route path="admin/projects/:id" element={<ProjectDetail/>}/>
-            <Route path="admin/projects/:projectId/activities/:activityId" element={<ActivityDetail/>}/>
+            <Route path="admin/projects/:id" element={<ProjectDetail />} />
+            <Route path="admin/projects/:projectId/activities/:activityId" element={<ActivityDetail />}/>
+            <Route path="admin/allreallocation" element={<AllReallocation />} />
+            <Route path="admin/allreallocation/:id" element={<ReallocationDetail/>}/>
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["finance"]} />}>
             <Route path="finance/dashboard" element={<FinanceDashboard />} />
             <Route path="finance/reallocations" element={<Reallocations />} />
-            <Route path="finance/reallocations/:id" element={<FinanceRequestDetails />} />
+            <Route
+              path="finance/reallocations/:id"
+              element={<FinanceRequestDetails />}
+            />
             <Route path="finance/projects" element={<AllProjectsFinance />} />
-            <Route path="finance/projects/:id" element={<ProjectDetailsFinance />} />
-            <Route path="finance/projects/:projectId/activities/:activityId" element={<ActivityDetailsFinance />} />
-            <Route path="finance/projects/:id/edit" element={<EditProjectFinance />} />
+            <Route
+              path="finance/projects/:id"
+              element={<ProjectDetailsFinance />}
+            />
+            <Route
+              path="finance/projects/:projectId/activities/:activityId"
+              element={<ActivityDetailsFinance />}
+            />
+            <Route
+              path="finance/projects/:id/edit"
+              element={<EditProjectFinance />}
+            />
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["program"]} />}>
@@ -71,9 +87,18 @@ const App = () => {
             <Route path="program/projects" element={<MyProjects />} />
             <Route path="program/projects/:id" element={<ProjectDetails />} />
             <Route path="program/projects/:id/edit" element={<EditProject />} />
-            <Route path="program/projects/:projectId/activities/:activityId" element={<ActivityDetails />}/>
-            <Route path="program/reallocations" element={<ReallocationRequests />}/>
-            <Route path="program/reallocations/:id" element={<RequestDetails />}/>
+            <Route
+              path="program/projects/:projectId/activities/:activityId"
+              element={<ActivityDetails />}
+            />
+            <Route
+              path="program/reallocations"
+              element={<ReallocationRequests />}
+            />
+            <Route
+              path="program/reallocations/:id"
+              element={<RequestDetails />}
+            />
           </Route>
 
           <Route
