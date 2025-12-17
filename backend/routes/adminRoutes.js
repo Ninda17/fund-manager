@@ -9,6 +9,10 @@ const {
   getActivityById,
   getAllProjectsAdmin,
   getDashboardData,
+  getUserActivityHistory,
+  getAllReallocationRequestsForAdmin,
+  getReallocationRequestByIdForAdmin,
+  
 } = require("../controllers/adminController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -38,6 +42,13 @@ router.get("/projects/:projectId/activities/:activityId", getActivityById);
 
 // Get dashboard data
 router.get("/dashboard", getDashboardData);
+
+// Activity log routes
+router.get("/user-activity-history", getUserActivityHistory);
+
+// Reallocation routes
+router.get('/reallocations', getAllReallocationRequestsForAdmin);
+router.get("/reallocations/:id", getReallocationRequestByIdForAdmin);
 
 module.exports = router;
 

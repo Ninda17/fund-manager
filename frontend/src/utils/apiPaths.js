@@ -21,8 +21,12 @@ export const API_PATHS = {
     USERS_APPROVAL: (id) => `${API_BASE}/admin/users/${id}/approval`,
     PROJECTS: `${API_BASE}/admin/projects`,
     PROJECT_BY_ID: (id) => `${API_BASE}/admin/projects/${id}`,
-    ACTIVITY_BY_ID: (projectId, activityId) => `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
+    ACTIVITY_BY_ID: (projectId, activityId) =>
+      `${API_BASE}/admin/projects/${projectId}/activities/${activityId}`,
+    GET_REALLOCATION: `${API_BASE}/admin/reallocations`,
+    GET_REALLOCATION_BY_ID: (id) => `${API_BASE}/admin/reallocations/${id}`,
     DASHBOARD_DATA: `${API_BASE}/admin/dashboard`,
+    ACTIVITY_LOGS: `${API_BASE}/admin/user-activity-history`,
   },
 
   // Program endpoints

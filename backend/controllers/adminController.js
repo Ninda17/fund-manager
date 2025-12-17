@@ -1,6 +1,7 @@
 const User = require("../models/userModel");
 const Project = require("../models/projectModel");
 const ReallocationRequest = require("../models/reallocationRequestModel");
+const ActivityLog = require("../models/activityLogModel");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -617,6 +618,142 @@ const getDashboardData = async (req, res) => {
     });
   }
 };
+// Get user activity history (only for admin)
+const getUserActivityHistory = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = "" } = req.query;
+
+    // Only admin can access this endpoint
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only admin can view activity logs.",
+      });
+    }
+
+    // Build query - only show finance and program manager activities
+    const query = {
+      userRole: { $in: ["finance", "program"] },
+    };
+
+    // Optional search by email or action
+    if (search) {
+      query.$or = [
+        { userEmail: { $regex: search, $options: "i" } },
+        { action: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const totalLogs = await ActivityLog.countDocuments(query);
+
+    const logs = await ActivityLog.find(query)
+      .select("timestamp userEmail action")
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const formattedLogs = logs.map((log) => ({
+      id: log._id,
+      dateTime: log.timestamp,
+      email: log.userEmail,
+      action: log.action,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedLogs.length,
+      total: totalLogs,
+      totalPages: Math.ceil(totalLogs / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: formattedLogs,
+    });
+  } catch (error) {
+    console.error("Get user activity history error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+// Admin - Get all reallocation requests
+const getAllReallocationRequestsForAdmin = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // Build query - empty query gets all requests (no user filter)
+    const query = {};
+    
+    // Optional status filter
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      query.status = status;
+    }
+
+    // Fetch all requests with populated data
+    const requests = await ReallocationRequest.find(query)
+      .populate("requestedBy", "name email")
+      .populate("sourceProjectId", "projectId title")
+      .populate("destinationProjectId", "projectId title")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      data: requests,
+    });
+  } catch (error) {
+    console.error("Admin get all reallocation requests error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+// Simple admin version
+const getReallocationRequestByIdForAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request ID format",
+      });
+    }
+
+    // Note: Using findById instead of findOne with requestedBy filter
+    const request = await ReallocationRequest.findById(id)
+      .populate("requestedBy", "name email")
+      .populate("sourceProjectId", "projectId title")
+      .populate("destinationProjectId", "projectId title")
+      .populate("projectId", "projectId title")
+      .populate("approvedBy", "name email");
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Reallocation request not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    console.error("Admin get reallocation request by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
 
 module.exports = {
   getAllUsers,
@@ -627,4 +764,7 @@ module.exports = {
   getProjectById,
   getActivityById,
   getDashboardData,
+  getUserActivityHistory,
+  getAllReallocationRequestsForAdmin,
+  getReallocationRequestByIdForAdmin,
 };

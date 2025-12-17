@@ -2,6 +2,7 @@ const Project = require("../models/projectModel");
 const ReallocationRequest = require("../models/reallocationRequestModel");
 const mongoose = require("mongoose");
 const path = require("path");
+const logActivity  = require("../utils/logActivity");
 
 console
 // Helper function to build financePersonnel query that handles both ObjectId and string formats
@@ -544,6 +545,15 @@ const approveReallocationRequest = async (req, res) => {
 
     await session.commitTransaction();
 
+    await logActivity({
+      user: req.user,
+      action: "REALLOCATION_APPROVED",
+      entityType: "reallocation",
+      entityId: request._id,
+      description: `Reallocation approved by finance`,
+    });
+
+
     // Check utilization and send notifications for affected projects (non-blocking)
     try {
       const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
@@ -675,6 +685,15 @@ const rejectReallocationRequest = async (req, res) => {
     await request.save({ session });
 
     await session.commitTransaction();
+
+    await logActivity({
+      user: req.user,
+      action: "REALLOCATION_REJECTED",
+      entityType: "reallocation",
+      entityId: request._id,
+      description: `Reallocation rejected: ${rejectionReason}`,
+    });
+
 
 
     // Populate before sending response
@@ -1388,6 +1407,15 @@ const updateProject = async (req, res) => {
         return decryptedActivity;
       });
     }
+
+    await logActivity({
+      user: req.user,
+      action: "PROJECT_EDITED",
+      entityType: "project",
+      entityId: id,
+      description: "Project financial data updated",
+    });
+
 
     res.status(200).json({
       success: true,

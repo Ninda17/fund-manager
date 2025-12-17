@@ -1,3 +1,4 @@
+// utils/logActivity.js - FINAL PRODUCTION VERSION
 const ActivityLog = require("../models/activityLogModel");
 
 const logActivity = async ({
@@ -5,20 +6,32 @@ const logActivity = async ({
   action,
   entityType,
   entityId,
+  description = "",
   metadata = {},
 }) => {
   try {
-    await ActivityLog.create({
-      user: user.id,
-      role: user.role,
-      email: user.email,
-      action,
-      entityType,
-      entityId,
-      metadata,
-    });
-  } catch (err) {
-    console.error("Activity log failed:", err.message);
+    // Prepare data for log
+    const logData = {
+      user: user._id || user.id,
+      userName: user.name || "Unknown User",
+      userEmail: user.email || "unknown@example.com",
+      userRole: user.role || "unknown",
+      action: action,
+      entityType: entityType,
+      entityId: entityId ? entityId.toString() : "unknown",
+      description: description,
+      metadata: metadata,
+      timestamp: new Date(),
+    };
+
+    // Create the log
+    const activityLog = await ActivityLog.create(logData);
+
+    return activityLog;
+  } catch (error) {
+    console.error("Failed to create activity log:", error.message);
+    // Don't throw - logging shouldn't break main functionality
+    return null;
   }
 };
 
