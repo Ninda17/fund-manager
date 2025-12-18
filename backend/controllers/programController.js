@@ -2,6 +2,7 @@ const Project = require("../models/projectModel");
 const User = require("../models/userModel");
 const ReallocationRequest = require("../models/reallocationRequestModel");
 const mongoose = require("mongoose");
+const logActivity  = require("../utils/logActivity");
 
 const createProject = async (req, res) => {
   try {
@@ -184,6 +185,13 @@ const createProject = async (req, res) => {
       currency: selectedCurrency,
       projectType: selectedProjectType,
       activities: activities || [],
+    });
+
+    await logActivity({
+      user: req.user,
+      action: "PROJECT_CREATED",
+      entityType: "project",
+      entityId: project._id,
     });
 
     // Project will be automatically decrypted by post-save hook
@@ -894,6 +902,13 @@ const updateProject = async (req, res) => {
       // Don't fail the request if notification fails
     }
 
+    await logActivity({
+      user: req.user,
+      action: "PROJECT_UPDATED",
+      entityType: "project",
+      entityId: id,
+    });
+
     // Project will be automatically decrypted by post-save hook
     res.status(200).json({
       success: true,
@@ -966,6 +981,13 @@ const deleteProject = async (req, res) => {
 
     // Delete the project
     await Project.findByIdAndDelete(id);
+
+    await logActivity({
+      user: req.user,
+      action: "PROJECT_DELETED",
+      entityType: "project",
+      entityId: id,
+    });
 
     res.status(200).json({
       success: true,
@@ -1113,6 +1135,14 @@ const deleteActivity = async (req, res) => {
       console.error("Error setting up utilization check:", error);
       // Don't fail the request if notification fails
     }
+
+    await logActivity({
+      user: req.user,
+      action: "ACTIVITY_DELETED",
+      entityType: "activity",
+      entityId: activityId,
+      metadata: { projectId },
+    });
 
     res.status(200).json({
       success: true,
@@ -1313,6 +1343,14 @@ const deleteSubActivity = async (req, res) => {
       // Don't fail the request if notification fails
     }
 
+      await logActivity({
+        user: req.user,
+        action: "SUBACTIVITY_DELETED",
+        entityType: "subactivity",
+        entityId: subactivityId,
+        metadata: { projectId, activityId },
+      });
+
     res.status(200).json({
       success: true,
       message: "Subactivity deleted successfully",
@@ -1336,15 +1374,6 @@ const deleteSubActivity = async (req, res) => {
       message: "Server error. Please try again later.",
     });
   }
-
-  await logActivity({
-    user: req.user,
-    action: "SUBACTIVITY_DELETED",
-    entityType: "subactivity",
-    entityId: subactivityId,
-    metadata: { projectId, activityId },
-  });
-
 };
 
 // ==================== REALLOCATION REQUEST FUNCTIONS ====================
@@ -1718,6 +1747,14 @@ const createReallocationRequest = async (req, res) => {
     const reallocationRequest = await ReallocationRequest.create([requestData], { session });
 
     await session.commitTransaction();
+
+    await logActivity({
+      user: req.user,
+      action: "REALLOCATION_CREATED",
+      entityType: "reallocation",
+      entityId: reallocationRequest[0]._id,
+    });
+
 
 
     res.status(201).json({

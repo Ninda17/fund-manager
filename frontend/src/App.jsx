@@ -36,6 +36,7 @@ import ActivityDetailsFinance from "./pages/Finance/ActivityDetails";
 import EditProjectFinance from "./pages/Finance/EditProject";
 import AllReallocation from "./pages/Admin/AllReallocation";
 import ReallocationDetail from "./pages/Admin/ReallocationDetail";
+import UserHistory from "./pages/Admin/UserHistory";
 
 const App = () => {
   return (
@@ -57,6 +58,7 @@ const App = () => {
             <Route path="admin/projects/:projectId/activities/:activityId" element={<ActivityDetail />}/>
             <Route path="admin/allreallocation" element={<AllReallocation />} />
             <Route path="admin/allreallocation/:id" element={<ReallocationDetail/>}/>
+            <Route path="admin/userhistory" element={<UserHistory/>}/>
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["finance"]} />}>

@@ -118,8 +118,13 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       icon: MyProjectIcon,
     },
     {
-      name: "All Reallocation Request",
+      name: "Reallocation Requests",
       path: "/admin/allreallocation",
+      icon: MyProjectIcon,
+    },
+    {
+      name: "Logs",
+      path: "/admin/userhistory",
       icon: MyProjectIcon,
     },
     {

@@ -1,35 +1,49 @@
+// models/activityLogModel.js
 const mongoose = require("mongoose");
 
-const activityLogSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    role: {
-      type: String,
-      enum: ["admin", "finance", "program"],
-      required: true,
-    },
-    email: String,
-
-    action: {
-      type: String,
-      required: true,
-    },
-
-    entityType: {
-      type: String, // project, activity, subactivity, reallocation
-    },
-
-    entityId: {
-      type: mongoose.Schema.Types.ObjectId,
-    },
-
-    metadata: Object, // optional extra info
+const activityLogSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
   },
-  { timestamps: true } // ✅ gives date & time automatically
-);
+  userName: {
+    type: String,
+    required: true,
+  },
+  userEmail: {
+    type: String,
+    required: true,
+  },
+  userRole: {
+    type: String,
+    required: true,
+    enum: ["admin", "finance", "program"],
+  },
+  action: {
+    type: String,
+    required: true,
+  },
+  entityType: {
+    type: String,
+    required: true,
+  },
+  entityId: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    default: "",
+  },
+  metadata: {
+    type: Object,
+    default: {},
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+  },
+});
 
 module.exports = mongoose.model("ActivityLog", activityLogSchema);
