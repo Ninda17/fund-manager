@@ -99,6 +99,39 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
       />
     </svg>
   );
+  const ManageUserIcon = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-5 h-5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.75 6.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 19.5a7.5 7.5 0 0115 0"
+      />
+    </svg>
+  );
+
+  const LogsIcon = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-5 h-5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
+      />
+    </svg>
+  );
 
   // Admin menu items
   const adminMenuItems = [
@@ -110,7 +143,7 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
     {
       name: "Manage User",
       path: "/admin/manage-user",
-      icon: dashboardIcon,
+      icon: ManageUserIcon,
     },
     {
       name: "All projects",
@@ -120,12 +153,12 @@ const SideMenu = ({ activeMenu, setOpenSideMenu }) => {
     {
       name: "Reallocation Requests",
       path: "/admin/allreallocation",
-      icon: MyProjectIcon,
+      icon: ReallocationIcon,
     },
     {
       name: "Logs",
       path: "/admin/userhistory",
-      icon: MyProjectIcon,
+      icon: LogsIcon,
     },
     {
       name: "Reports",
