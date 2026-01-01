@@ -20,7 +20,7 @@ const Navbar = ({ openSideMenu, setOpenSideMenu }) => {
       <div className="flex items-center justify-between">
         {/* Fund Manager Title - Left side */}
         <Link to={dashboardPath} className="text-xl text-black">
-          Tarayana FundFlow
+          Tarayana PFRS
         </Link>
         
         {/* Mobile Menu Button */}

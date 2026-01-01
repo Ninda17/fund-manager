@@ -352,7 +352,7 @@ const CreateProject = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <Input
-                  label="Donor Name *"
+                  label="Donor / Partner *"
                   placeholder="Enter donor name"
                   value={donorName}
                   onChange={(e) => {
@@ -363,7 +363,7 @@ const CreateProject = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Amount Donated *"
+                    label="Total Budget *"
                     type="number"
                     placeholder="0.00"
                     value={amountDonated}
@@ -411,10 +411,10 @@ const CreateProject = () => {
                   }}
                   className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="Education">Education</option>
-                  <option value="Welfare">Welfare</option>
-                  <option value="Youth">Youth</option>
-                  <option value="other">other</option>
+                  <option value="Education">Social Development Program</option>
+                  <option value="Welfare">Economic Development Program</option>
+                  <option value="Youth">Environmental and Climate Change Program</option>
+                  <option value="other">Research Advocacy and Network Program</option>
                 </select>
               </div>
             </div>
