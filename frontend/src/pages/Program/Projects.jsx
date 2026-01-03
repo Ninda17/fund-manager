@@ -87,6 +87,18 @@ const MyProjects = () => {
         }
       }
 
+      const expenseRaw =
+        project.totalExpense !== undefined && project.totalExpense !== null
+          ? String(project.totalExpense)
+          : "";
+      const expenseFormatted =
+        project.totalExpense !== undefined &&
+        project.totalExpense !== null &&
+        project.currency
+          ? `${project.currency} ${project.totalExpense}`.toLowerCase()
+          : "";
+
+
       // Combine all searchable fields into a single string
       const searchableText = [
         projectId,
@@ -94,6 +106,8 @@ const MyProjects = () => {
         financeName,
         financeEmail,
         amount,
+        expenseRaw,
+        expenseFormatted,
         currency,
         progressStatus,
         budgetStatus,
@@ -105,8 +119,8 @@ const MyProjects = () => {
         startDateMonth,
         endDateMonth,
         startDateDay,
-        endDateDay
-      ].join(' ')
+        endDateDay,
+      ].join(" ");
 
       // Check if ALL search terms match (AND logic)
       return searchTerms.every(term => searchableText.includes(term))
@@ -206,8 +220,12 @@ const MyProjects = () => {
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">My Projects</h1>
-          <p className="text-gray-600 text-sm sm:text-base">View and manage all your projects</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+            My Projects
+          </h1>
+          <p className="text-gray-600 text-sm sm:text-base">
+            View and manage all your projects
+          </p>
         </div>
 
         {/* Search Bar */}
@@ -237,7 +255,7 @@ const MyProjects = () => {
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchQuery("")}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
                   <svg
@@ -261,7 +279,9 @@ const MyProjects = () => {
                   <span>No projects found matching "{searchQuery}"</span>
                 ) : (
                   <span>
-                    Found {projects.length} {projects.length === 1 ? 'project' : 'projects'} matching "{searchQuery}"
+                    Found {projects.length}{" "}
+                    {projects.length === 1 ? "project" : "projects"} matching "
+                    {searchQuery}"
                   </span>
                 )}
               </p>
@@ -293,8 +313,12 @@ const MyProjects = () => {
                 d="M2.25 13.5V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121.75 6v7.5V18a2.25 2.25 0 01-2.25 2.25H4.5A2.25 2.25 0 012.25 18v-4.5zm19.5-4.5v2.25m0 3.75v3.75M12 18h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zm0 2.25h.008v.008H12v-.008zM12 12h.008v.008H12v-.008zM12 14.25h.008v.008H12v-.008zM12 16.5h.008v.008H12v-.008z"
               />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
-            <p className="text-gray-500 mb-6">Get started by creating your first project</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No projects found
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Get started by creating your first project
+            </p>
           </div>
         ) : projects.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
@@ -312,10 +336,14 @@ const MyProjects = () => {
                 d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
               />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No matching projects</h3>
-            <p className="text-gray-500 mb-6">Try adjusting your search query</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No matching projects
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Try adjusting your search query
+            </p>
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => setSearchQuery("")}
               className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
             >
               Clear Search
@@ -348,6 +376,9 @@ const MyProjects = () => {
                         Amount
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Expenses
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Utilization
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -360,41 +391,69 @@ const MyProjects = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {projects.map((project) => {
-                      const utilization = calculateUtilization(project)
-                      const progressStatus = project.projectStatus || 'Not Started'
-                      const budgetStatus = getBudgetStatus(project)
+                      const utilization = calculateUtilization(project);
+                      const progressStatus =
+                        project.projectStatus || "Not Started";
+                      const budgetStatus = getBudgetStatus(project);
                       return (
-                        <tr 
-                          key={project._id} 
+                        <tr
+                          key={project._id}
                           className="hover:bg-gray-50 transition-colors cursor-pointer"
-                          onClick={() => navigate(`/program/projects/${project._id}`)}
+                          onClick={() =>
+                            navigate(`/program/projects/${project._id}`)
+                          }
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm font-medium text-gray-900">{project.projectId}</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {project.projectId}
+                            </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-sm text-gray-900">{project.title}</span>
+                            <span className="text-sm text-gray-900">
+                              {project.title}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-600">{formatDate(project.startDate)}</span>
+                            <span className="text-sm text-gray-600">
+                              {formatDate(project.startDate)}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-600">{formatDate(project.endDate)}</span>
+                            <span className="text-sm text-gray-600">
+                              {formatDate(project.endDate)}
+                            </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm">
-                              <div className="font-medium text-gray-900">{project.financePersonnel?.name || 'N/A'}</div>
-                              <div className="text-gray-500">{project.financePersonnel?.email || ''}</div>
+                              <div className="font-medium text-gray-900">
+                                {project.financePersonnel?.name || "N/A"}
+                              </div>
+                              <div className="text-gray-500">
+                                {project.financePersonnel?.email || ""}
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm font-medium text-gray-900">
-                              {formatCurrency(project.amountDonated, project.currency)}
+                              {formatCurrency(
+                                project.amountDonated,
+                                project.currency
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatCurrency(
+                                project.totalExpense || 0,
+                                project.currency
+                              )}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col items-start">
-                              <span className="text-sm text-gray-600 mb-1">{utilization.toFixed(1)}%</span>
+                              <span className="text-sm text-gray-600 mb-1">
+                                {utilization.toFixed(1)}%
+                              </span>
                               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                                 <div
                                   className="bg-gray-900 h-full rounded-full transition-all"
@@ -404,17 +463,25 @@ const MyProjects = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
+                            <span
+                              className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(
+                                progressStatus
+                              )}`}
+                            >
                               {progressStatus}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
+                            <span
+                              className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(
+                                budgetStatus
+                              )}`}
+                            >
                               {formatBudgetStatus(budgetStatus)}
                             </span>
                           </td>
                         </tr>
-                      )
+                      );
                     })}
                   </tbody>
                 </table>
@@ -424,93 +491,147 @@ const MyProjects = () => {
             {/* Mobile/Tablet Card View */}
             <div className="lg:hidden space-y-4">
               {projects.map((project) => {
-                const utilization = calculateUtilization(project)
-                const progressStatus = project.projectStatus || 'Not Started'
-                const budgetStatus = getBudgetStatus(project)
+                const utilization = calculateUtilization(project);
+                const progressStatus = project.projectStatus || "Not Started";
+                const budgetStatus = getBudgetStatus(project);
                 return (
-                <div
-                  key={project._id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/program/projects/${project._id}`)}
-                >
-                  <div className="space-y-3">
-                    {/* Project ID and Title */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-500">Project ID</span>
-                        <span className="text-xs font-semibold text-primary">{project.projectId}</span>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mt-2">{project.title}</h3>
-                    </div>
-
-                    {/* Dates */}
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                  <div
+                    key={project._id}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => navigate(`/program/projects/${project._id}`)}
+                  >
+                    <div className="space-y-3">
+                      {/* Project ID and Title */}
                       <div>
-                        <span className="text-xs text-gray-500 block mb-1">Start Date</span>
-                        <span className="text-sm font-medium text-gray-900">{formatDate(project.startDate)}</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-500">
+                            Project ID
+                          </span>
+                          <span className="text-xs font-semibold text-primary">
+                            {project.projectId}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mt-2">
+                          {project.title}
+                        </h3>
                       </div>
-                      <div>
-                        <span className="text-xs text-gray-500 block mb-1">End Date</span>
-                        <span className="text-sm font-medium text-gray-900">{formatDate(project.endDate)}</span>
-                      </div>
-                    </div>
 
-                    {/* Finance Personnel */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-500 block mb-1">Finance Personnel</span>
-                      <div className="text-sm">
-                        <div className="font-medium text-gray-900">{project.financePersonnel?.name || 'N/A'}</div>
-                        <div className="text-gray-500 text-xs mt-0.5">{project.financePersonnel?.email || ''}</div>
-                      </div>
-                    </div>
-
-                    {/* Amount */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-500 block mb-1">Amount Donated</span>
-                      <span className="text-lg font-semibold text-gray-900">
-                        {formatCurrency(project.amountDonated, project.currency)}
-                      </span>
-                    </div>
-
-                    {/* Utilization */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-500 block mb-2">Utilization</span>
-                      <div className="flex flex-col">
-                        <span className="text-sm text-gray-600 mb-2">{utilization.toFixed(1)}%</span>
-                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-gray-900 h-full rounded-full transition-all"
-                            style={{ width: `${utilization}%` }}
-                          />
+                      {/* Dates */}
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                        <div>
+                          <span className="text-xs text-gray-500 block mb-1">
+                            Start Date
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatDate(project.startDate)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 block mb-1">
+                            End Date
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatDate(project.endDate)}
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Progress */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-500 block mb-2">Progress</span>
-                      <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(progressStatus)}`}>
-                        {progressStatus}
-                      </span>
-                    </div>
+                      {/* Finance Personnel */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-1">
+                          Finance Personnel
+                        </span>
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">
+                            {project.financePersonnel?.name || "N/A"}
+                          </div>
+                          <div className="text-gray-500 text-xs mt-0.5">
+                            {project.financePersonnel?.email || ""}
+                          </div>
+                        </div>
+                      </div>
 
-                    {/* Status */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-500 block mb-2">Status</span>
-                      <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(budgetStatus)}`}>
-                        {formatBudgetStatus(budgetStatus)}
-                      </span>
+                      {/* Amount */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-1">
+                          Amount Donated
+                        </span>
+                        <span className="text-lg font-semibold text-gray-900">
+                          {formatCurrency(
+                            project.amountDonated,
+                            project.currency
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Expenses */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-1">
+                          Expenses
+                        </span>
+                        <span className="text-lg font-semibold text-gray-900">
+                          {formatCurrency(
+                            project.totalExpense || 0,
+                            project.currency
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Utilization */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-2">
+                          Utilization
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-600 mb-2">
+                            {utilization.toFixed(1)}%
+                          </span>
+                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-gray-900 h-full rounded-full transition-all"
+                              style={{ width: `${utilization}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-2">
+                          Progress
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(
+                            progressStatus
+                          )}`}
+                        >
+                          {progressStatus}
+                        </span>
+                      </div>
+
+                      {/* Status */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-2">
+                          Status
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(
+                            budgetStatus
+                          )}`}
+                        >
+                          {formatBudgetStatus(budgetStatus)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                )
+                );
               })}
             </div>
           </div>
         )}
-        </div>
+      </div>
     </DashboardLayout>
-  )
+  );
 }
 
 export default MyProjects
