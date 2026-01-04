@@ -81,7 +81,7 @@ const projectSchema = new mongoose.Schema(
     projectType: {
       type: String,
       required: true,
-      default: "Education",
+      default: "Social Development Program",
       enum: ["Social Development Program", "Economic Development Program", "Environmental and Climate Change Program", "Research Advocacy and Network Program"]
     },
     totalExpense: { 
