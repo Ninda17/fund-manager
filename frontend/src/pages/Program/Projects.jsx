@@ -149,10 +149,14 @@ const MyProjects = () => {
   }
 
   const calculateUtilization = (project) => {
-    if (!project || !project.amountDonated || project.amountDonated === 0) return 0
-    const totalExpense = project.totalExpense || 0
-    return Math.min((totalExpense / project.amountDonated) * 100, 100)
-  }
+    if (!project || !project.amountDonated) return 0;
+
+    const donated = project.amountDonated;
+    const expense = project.totalExpense || 0;
+
+    return donated > 0 ? (expense / donated) * 100 : 0;
+  };
+
 
   const getProgressBadgeStyle = (status) => {
     const statusStyles = {
