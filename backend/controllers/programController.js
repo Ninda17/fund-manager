@@ -18,6 +18,7 @@ const createProject = async (req, res) => {
       currency,
       projectType,
       activities,
+      documents,
     } = req.body;
 
     // Validate required fields
@@ -185,6 +186,7 @@ const createProject = async (req, res) => {
       currency: selectedCurrency,
       projectType: selectedProjectType,
       activities: activities || [],
+      documents: documents || [],
     });
 
     await logActivity({
@@ -2016,6 +2018,42 @@ const getDashboardData = async (req, res) => {
   }
 };
 
+const uploadDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a document",
+      });
+    }
+
+    const { uploadToCloudinary } = require("../middleware/uploadDocumentMiddleware");
+    
+    // Upload to Cloudinary
+    const documentUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+    
+    if (!documentUrl) {
+      console.error("No document URL returned from Cloudinary");
+      return res.status(500).json({
+        success: false,
+        message: "Failed to get document URL from storage",
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      documentUrl: documentUrl,
+      message: "Document uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Document upload error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload document. Please try again.",
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getFinancePersonnel,
@@ -2030,4 +2068,5 @@ module.exports = {
   getAllReallocationRequests,
   getReallocationRequestById,
   getDashboardData,
+  uploadDocument,
 };

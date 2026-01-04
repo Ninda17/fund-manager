@@ -21,9 +21,13 @@ const CreateProject = () => {
   const [projectType, setProjectType] = useState('Education')
   const [activities, setActivities] = useState([])
   
+  
   // Finance users list
   const [financeUsers, setFinanceUsers] = useState([])
   const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(true)
+  // Add to state declarations (after line 30)
+  const [wordDocuments, setWordDocuments] = useState([])
+  const [uploadingDocs, setUploadingDocs] = useState(false)
   
   // Form errors
   const [error, setError] = useState('')
@@ -92,6 +96,89 @@ const CreateProject = () => {
       (_, i) => i !== subIndex
     )
     setActivities(updated)
+  }
+
+  // Handle Word document file selection
+  const handleDocumentChange = (e) => {
+    const files = Array.from(e.target.files)
+    
+    // Validate file types
+    const validTypes = [
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-word.document.macroEnabled.12'
+    ]
+    
+    const validExtensions = ['.doc', '.docx']
+    
+    const invalidFiles = files.filter(file => {
+      const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+      return !validTypes.includes(file.type) && !validExtensions.includes(extension)
+    })
+    
+    if (invalidFiles.length > 0) {
+      setError('Please select only Word documents (.doc or .docx files)')
+      return
+    }
+    
+    // Validate file size (max 10MB per file)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    const oversizedFiles = files.filter(file => file.size > maxSize)
+    
+    if (oversizedFiles.length > 0) {
+      setError('Each file must be less than 10MB')
+      return
+    }
+    
+    // Add files to state
+    setWordDocuments(prev => [...prev, ...files])
+    setError('')
+    
+    // Reset file input
+    e.target.value = ''
+  }
+
+  // Remove document from list
+  const removeDocument = (index) => {
+    setWordDocuments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Upload documents function
+  const uploadDocuments = async () => {
+    if (wordDocuments.length === 0) return []
+    
+    setUploadingDocs(true)
+    const uploadedUrls = []
+    
+    try {
+      for (const file of wordDocuments) {
+        const formData = new FormData()
+        formData.append('document', file)
+        
+        const response = await axiosInstance.post(
+          API_PATHS.AUTH.UPLOAD_DOCUMENT,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        )
+        
+        if (response.data.success && response.data.documentUrl) {
+          uploadedUrls.push(response.data.documentUrl)
+        }
+      }
+      
+      return uploadedUrls
+    } catch (error) {
+      console.error('Document upload error:', error)
+      console.error('Error response:', error.response?.data)
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload documents. Please try again.'
+      throw new Error(errorMessage)
+    } finally {
+      setUploadingDocs(false)
+    }
   }
   
   // Update sub-activity
@@ -170,6 +257,18 @@ const CreateProject = () => {
     setLoading(true)
     
     try {
+      // Upload documents first
+      let documentUrls = []
+      if (wordDocuments.length > 0) {
+        try {
+          documentUrls = await uploadDocuments()
+        } catch (uploadError) {
+          setError(uploadError.message || 'Failed to upload documents')
+          setLoading(false)
+          return
+        }
+      }
+      
       // Prepare activities data
       const activitiesData = activities.map(activity => ({
         activityId: activity.activityId?.trim() || undefined,
@@ -194,7 +293,8 @@ const CreateProject = () => {
         amountDonated: parseFloat(amountDonated),
         currency,
         projectType,
-        activities: activitiesData
+        activities: activitiesData,
+        documents: documentUrls.length > 0 ? documentUrls : undefined
       }
       
       const response = await axiosInstance.post(
@@ -417,6 +517,61 @@ const CreateProject = () => {
                   <option value="Research Advocacy and Network Program">Research Advocacy and Network Program</option>
                 </select>
               </div>
+            </div>
+
+            <div className="border-t border-gray-200 my-10"></div>
+            
+            {/* Word Documents Upload Section */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Supporting Documents</h2>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Attach Word Documents (Optional)
+                </label>
+                <input
+                  type="file"
+                  accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  multiple
+                  onChange={handleDocumentChange}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  disabled={uploadingDocs || loading}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  You can select multiple Word documents (.doc, .docx). Max 10MB per file.
+                </p>
+              </div>
+              
+              {/* Display selected documents */}
+              {wordDocuments.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Selected Documents:</p>
+                  {wordDocuments.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm text-gray-700">{file.name}</span>
+                        <span className="text-xs text-gray-500">
+                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeDocument(index)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                        disabled={uploadingDocs || loading}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  {uploadingDocs && (
+                    <p className="text-sm text-blue-600">Uploading documents...</p>
+                  )}
+                </div>
+              )}
             </div>
             
             {/* Divider */}
