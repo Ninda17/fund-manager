@@ -82,8 +82,8 @@ const createProject = async (req, res) => {
     }
 
     // Validate projectType if provided
-    const validProjectTypes = ["Education", "Welfare", "Youth"];
-    const selectedProjectType = projectType || "Education";
+    const validProjectTypes = ["Social Development Program", "Economic Development Program", "Environmental and Climate Change Program", "Research Advocacy and Network Program"];
+    const selectedProjectType = projectType || "Social Development Program";
     if (!validProjectTypes.includes(selectedProjectType)) {
       return res.status(400).json({
         success: false,
