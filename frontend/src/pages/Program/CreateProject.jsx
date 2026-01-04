@@ -156,7 +156,7 @@ const CreateProject = () => {
         formData.append('document', file)
         
         const response = await axiosInstance.post(
-          API_PATHS.AUTH.UPLOAD_DOCUMENT,
+          API_PATHS.PROGRAM.UPLOAD_DOCUMENT,
           formData,
           {
             headers: {
