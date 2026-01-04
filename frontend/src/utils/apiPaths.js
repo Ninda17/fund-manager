@@ -9,6 +9,7 @@ export const API_PATHS = {
     PROFILE: `${API_BASE}/auth/profile`,
     UPDATE_PASSWORD: `${API_BASE}/auth/update-password`,
     UPLOAD_IMAGE: `${API_BASE}/auth/upload-image`,
+    UPLOAD_DOCUMENT: `${API_BASE}/auth/upload-document`,
     FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
     RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
     VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
