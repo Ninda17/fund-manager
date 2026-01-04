@@ -95,6 +95,10 @@ const projectSchema = new mongoose.Schema(
       default: "Not Started",
       enum: ["Not Started", "In Progress", "Completed"]
     },
+    documents: [{
+      type: String, // Array of document URLs
+      required: false
+    }],
     activities: [activitySchema]
   },
   { timestamps: true }
