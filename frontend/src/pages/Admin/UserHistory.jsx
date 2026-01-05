@@ -9,35 +9,17 @@ const UserHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: 0,
-  });
 
-  const getActivityLogs = async (page = 1) => {
+  const getActivityLogs = async () => {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams();
-      params.append("page", page);
-      params.append("limit", 20);
-      if (searchQuery) params.append("search", searchQuery);
-
-      const queryString = params.toString();
-      const url = `${API_PATHS.ADMIN.ACTIVITY_LOGS}?${queryString}`;
-
-      const res = await axiosInstance.get(url);
+      const res = await axiosInstance.get(API_PATHS.ADMIN.ACTIVITY_LOGS);
 
       if (res.data.success) {
-        // Expecting only 3 fields: dateTime, email, action
-        setLogs(res.data.data || []);
-        setAllLogs(res.data.data || []);
-        setPagination({
-          currentPage: res.data.currentPage || 1,
-          totalPages: res.data.totalPages || 1,
-          totalItems: res.data.total || 0,
-        });
+        const logsData = res.data.data || [];
+        setLogs(logsData);
+        setAllLogs(logsData);
       } else {
         throw new Error(res.data.message || "Failed to fetch activity logs");
       }
@@ -52,21 +34,61 @@ const UserHistory = () => {
   };
 
   useEffect(() => {
-    getActivityLogs(1);
-  }, []); // Remove dependency on filters
+    getActivityLogs();
+  }, []); // Fetch on initial load
 
-  // Search filter
+  // Client-side filtering similar to MyProjects
   useEffect(() => {
     if (!searchQuery.trim()) {
-      return; // Let the API handle empty search
+      setLogs(allLogs);
+      return;
     }
-    // Debounced search - call API after typing stops
-    const timer = setTimeout(() => {
-      getActivityLogs(1);
-    }, 500);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    // Split search query into individual terms (AND logic)
+    const searchTerms = searchQuery
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .filter((term) => term.length > 0);
+
+    const filtered = allLogs.filter((log) => {
+      // Build searchable text for this log
+      const dateTime = log.dateTime
+        ? new Date(log.dateTime).toLocaleString().toLowerCase()
+        : "";
+
+      const dateOnly = log.dateTime
+        ? new Date(log.dateTime).toLocaleDateString().toLowerCase()
+        : "";
+
+      const timeOnly = log.dateTime
+        ? new Date(log.dateTime)
+            .toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+            .toLowerCase()
+        : "";
+
+      const email = (log.email || "").toLowerCase();
+      const action = formatAction(log.action || "").toLowerCase();
+      const rawAction = (log.action || "").toLowerCase();
+
+      const searchableText = [
+        dateTime,
+        dateOnly,
+        timeOnly,
+        email,
+        action,
+        rawAction,
+      ].join(" ");
+
+      // Check if ALL search terms match (AND logic)
+      return searchTerms.every((term) => searchableText.includes(term));
+    });
+
+    setLogs(filtered);
+  }, [searchQuery, allLogs]);
 
   const formatDateTime = (dateTime) => {
     if (!dateTime) return "";
@@ -89,15 +111,8 @@ const UserHistory = () => {
       .trim();
   };
 
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      getActivityLogs(newPage);
-    }
-  };
-
   const clearSearch = () => {
-    setSearchQuery("");
-    getActivityLogs(1);
+    setSearchQuery(""); // This will trigger the useEffect to reset logs to allLogs
   };
 
   return (
@@ -112,17 +127,13 @@ const UserHistory = () => {
             Track activities of finance and program managers
           </p>
           <div className="flex items-center mt-2 text-sm text-gray-500">
-            <span className="mr-4">Total Records: {pagination.totalItems}</span>
-            <span>
-              Page {pagination.currentPage} of {pagination.totalPages}
-            </span>
+            <span className="mr-4">Total Records: {logs.length}</span>
           </div>
         </div>
 
-        {/* Full-width Search Bar */}
-        <div className="mb-6 w-full">
+        {/* Search Bar - Updated to match MyProjects */}
+        <div className="mb-6">
           <div className="relative w-full">
-            {/* Search Icon */}
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg
                 className="h-5 w-5 text-gray-400"
@@ -138,23 +149,21 @@ const UserHistory = () => {
               </svg>
             </div>
 
-            {/* Input */}
             <input
               type="text"
-              placeholder="Search by email or action..."
+              placeholder="Search by date, time, email, or action..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
+              className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
             />
 
-            {/* Clear Button */}
             {searchQuery && (
               <button
                 onClick={clearSearch}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
               >
                 <svg
-                  className="h-5 w-5 text-gray-400"
+                  className="h-5 w-5 text-gray-400 hover:text-gray-600"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -169,11 +178,19 @@ const UserHistory = () => {
             )}
           </div>
 
-          {/* Search Result Info */}
           {searchQuery && (
-            <p className="mt-2 text-sm text-gray-600">
-              Searching for: "{searchQuery}"
-            </p>
+            <div className="mt-2">
+              <p className="text-sm text-gray-600">
+                {logs.length === 0 ? (
+                  <span>No logs found matching "{searchQuery}"</span>
+                ) : (
+                  <span>
+                    Found {logs.length} {logs.length === 1 ? "log" : "logs"}{" "}
+                    matching "{searchQuery}"
+                  </span>
+                )}
+              </p>
+            </div>
           )}
         </div>
 
@@ -194,7 +211,7 @@ const UserHistory = () => {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-800 text-sm">{error}</p>
             <button
-              onClick={() => getActivityLogs(1)}
+              onClick={() => getActivityLogs()}
               className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
             >
               Try again
@@ -293,146 +310,43 @@ const UserHistory = () => {
                 </div>
               ))}
             </div>
-
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between bg-white px-4 py-3 border-t border-gray-200 sm:px-6 rounded-b-lg">
-                <div className="flex flex-1 justify-between sm:hidden">
-                  <button
-                    onClick={() => handlePageChange(pagination.currentPage - 1)}
-                    disabled={pagination.currentPage === 1}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                      pagination.currentPage === 1
-                        ? "text-gray-400 bg-gray-100 cursor-not-allowed"
-                        : "text-gray-700 bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(pagination.currentPage + 1)}
-                    disabled={pagination.currentPage === pagination.totalPages}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                      pagination.currentPage === pagination.totalPages
-                        ? "text-gray-400 bg-gray-100 cursor-not-allowed"
-                        : "text-gray-700 bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      Showing page{" "}
-                      <span className="font-medium">
-                        {pagination.currentPage}
-                      </span>{" "}
-                      of{" "}
-                      <span className="font-medium">
-                        {pagination.totalPages}
-                      </span>
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                      <button
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage - 1)
-                        }
-                        disabled={pagination.currentPage === 1}
-                        className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
-                          pagination.currentPage === 1
-                            ? "text-gray-400 cursor-not-allowed"
-                            : "text-gray-500 hover:bg-gray-50"
-                        }`}
-                      >
-                        <span className="sr-only">Previous</span>
-                        <svg
-                          className="h-5 w-5"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-
-                      {/* Page numbers */}
-                      {Array.from(
-                        { length: Math.min(5, pagination.totalPages) },
-                        (_, i) => {
-                          let pageNum;
-                          if (pagination.totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (pagination.currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (
-                            pagination.currentPage >=
-                            pagination.totalPages - 2
-                          ) {
-                            pageNum = pagination.totalPages - 4 + i;
-                          } else {
-                            pageNum = pagination.currentPage - 2 + i;
-                          }
-
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => handlePageChange(pageNum)}
-                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                pagination.currentPage === pageNum
-                                  ? "z-10 bg-primary border-primary text-white"
-                                  : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        }
-                      )}
-
-                      <button
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage + 1)
-                        }
-                        disabled={
-                          pagination.currentPage === pagination.totalPages
-                        }
-                        className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
-                          pagination.currentPage === pagination.totalPages
-                            ? "text-gray-400 cursor-not-allowed"
-                            : "text-gray-500 hover:bg-gray-50"
-                        }`}
-                      >
-                        <span className="sr-only">Next</span>
-                        <svg
-                          className="h-5 w-5"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </nav>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* No Activity Logs */}
-        {!loading && !error && logs.length === 0 && (
+        {/* No Activity Logs - Updated to match MyProjects */}
+        {!loading && logs.length === 0 && searchQuery && !error && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-16 h-16 text-gray-400 mx-auto mb-4"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+              />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No matching logs
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Try adjusting your search query
+            </p>
+            <button
+              onClick={clearSearch}
+              className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
+
+        {/* No Activity Logs (initial state) */}
+        {!loading && logs.length === 0 && !searchQuery && !error && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <svg
               className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -451,18 +365,8 @@ const UserHistory = () => {
               No activity logs found
             </h3>
             <p className="text-gray-500 mb-6">
-              {searchQuery
-                ? `No logs found for "${searchQuery}"`
-                : "There are no activity logs to display at the moment."}
+              There are no activity logs to display at the moment.
             </p>
-            {searchQuery && (
-              <button
-                onClick={clearSearch}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                Clear Search
-              </button>
-            )}
           </div>
         )}
       </div>

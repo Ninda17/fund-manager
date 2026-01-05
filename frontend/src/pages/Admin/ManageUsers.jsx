@@ -56,6 +56,10 @@ const ManageUsers = () => {
     setUsers(filtered);
   }, [searchQuery, allUsers]);
 
+  const clearSearch = () => {
+    setSearchQuery(""); // This will trigger the useEffect to reset users to allUsers
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -100,10 +104,10 @@ const ManageUsers = () => {
               className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm sm:text-base"
             />
 
-            {/* Clear Button */}
+            {/* Clear Button inside input */}
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={clearSearch}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
               >
                 <svg
@@ -124,13 +128,18 @@ const ManageUsers = () => {
 
           {/* Search Result Info */}
           {searchQuery && (
-            <p className="mt-2 text-sm text-gray-600">
-              {users.length === 0
-                ? `No users found matching "${searchQuery}"`
-                : `Found ${users.length} ${
-                    users.length === 1 ? "user" : "users"
-                  } matching "${searchQuery}"`}
-            </p>
+            <div className="mt-2">
+              <p className="text-sm text-gray-600">
+                {users.length === 0 ? (
+                  <span>No users found matching "{searchQuery}"</span>
+                ) : (
+                  <span>
+                    Found {users.length} {users.length === 1 ? "user" : "users"}{" "}
+                    matching "{searchQuery}"
+                  </span>
+                )}
+              </p>
+            </div>
           )}
         </div>
 
@@ -275,8 +284,40 @@ const ManageUsers = () => {
           </div>
         )}
 
-        {/* No Users */}
-        {!loading && !error && users.length === 0 && (
+        {/* No Users - Updated to match MyProjects and UserHistory */}
+        {!loading && !error && users.length === 0 && searchQuery && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-16 h-16 text-gray-400 mx-auto mb-4"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+              />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No matching users
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Try adjusting your search query
+            </p>
+            <button
+              onClick={clearSearch}
+              className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
+
+        {/* No Users (initial state) */}
+        {!loading && !error && users.length === 0 && !searchQuery && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <svg
               className="w-16 h-16 text-gray-400 mx-auto mb-4"

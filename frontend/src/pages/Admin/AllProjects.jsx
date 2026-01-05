@@ -100,6 +100,19 @@ const MyProjects = () => {
         }
       }
 
+      const expenseRaw =
+        project.totalExpense !== null && project.totalExpense !== undefined
+          ? String(project.totalExpense)
+          : "";
+
+      const expenseFormatted =
+        project.totalExpense !== null &&
+        project.totalExpense !== undefined &&
+        project.currency
+          ? `${project.currency} ${project.totalExpense}`.toLowerCase()
+          : "";
+
+
       // Combine all searchable fields into a single string
       const searchableText = [
         projectId,
@@ -107,6 +120,8 @@ const MyProjects = () => {
         financeName,
         financeEmail,
         amount,
+        expenseRaw,
+        expenseFormatted,
         currency,
         progressStatus,
         budgetStatus,
@@ -128,30 +143,30 @@ const MyProjects = () => {
     setProjects(filtered);
   }, [searchQuery, allProjects]);
 
-const fetchProjects = async () => {
-  try {
-    setLoading(true);
-    setError("");
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    // Call the program endpoint instead of admin
-    const response = await axiosInstance.get(API_PATHS.ADMIN.PROJECTS);
-    // Extract the data safely
-    const projectsData = response.data?.data || [];
+      // Call the program endpoint instead of admin
+      const response = await axiosInstance.get(API_PATHS.ADMIN.PROJECTS);
+      // Extract the data safely
+      const projectsData = response.data?.data || [];
 
-    setAllProjects(projectsData);
-    setProjects(projectsData);
-  } catch (err) {
-    console.error("Error fetching projects:", err);
-    setError(
-      err.response?.data?.message ||
-        "Failed to load projects. Please try again."
-    );
-    setAllProjects([]);
-    setProjects([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      setAllProjects(projectsData);
+      setProjects(projectsData);
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+      setError(
+        err.response?.data?.message ||
+          "Failed to load projects. Please try again."
+      );
+      setAllProjects([]);
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 
@@ -383,7 +398,7 @@ const fetchProjects = async () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Project ID
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-120">
                         Title
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -396,7 +411,10 @@ const fetchProjects = async () => {
                         Finance Personnel
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        Total Budget
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Expenditure
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Utilization
@@ -428,11 +446,12 @@ const fetchProjects = async () => {
                               {project.projectId}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-normal wrap-break-word">
+                            <div className="text-sm font-medium text-gray-900">
                               {project.title}
-                            </span>
+                            </div>
                           </td>
+
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm text-gray-600">
                               {formatDate(project.startDate)}
@@ -457,6 +476,14 @@ const fetchProjects = async () => {
                             <span className="text-sm font-medium text-gray-900">
                               {formatCurrency(
                                 project.amountDonated,
+                                project.currency
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatCurrency(
+                                project.totalExpense || 0,
                                 project.currency
                               )}
                             </span>
@@ -571,6 +598,19 @@ const fetchProjects = async () => {
                         <span className="text-lg font-semibold text-gray-900">
                           {formatCurrency(
                             project.amountDonated,
+                            project.currency
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Expenses */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 block mb-1">
+                          Expenses
+                        </span>
+                        <span className="text-lg font-semibold text-gray-900">
+                          {formatCurrency(
+                            project.totalExpense || 0,
                             project.currency
                           )}
                         </span>
