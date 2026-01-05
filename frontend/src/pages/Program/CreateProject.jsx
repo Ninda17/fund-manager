@@ -18,7 +18,7 @@ const CreateProject = () => {
   const [donorName, setDonorName] = useState('')
   const [amountDonated, setAmountDonated] = useState('')
   const [currency, setCurrency] = useState('USD')
-  const [projectType, setProjectType] = useState('Education')
+  const [projectType, setProjectType] = useState('Social Development Program')
   const [activities, setActivities] = useState([])
   
   
@@ -106,27 +106,27 @@ const CreateProject = () => {
     const validTypes = [
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-word.document.macroEnabled.12'
+      'application/vnd.ms-word.document.macroEnabled.12',
+      'application/pdf'
     ]
     
-    const validExtensions = ['.doc', '.docx']
+    const validExtensions = ['.doc', '.docx', '.pdf']
+    
+    // Validate file types and size (25MB limit per file)
+    const maxSize = 25 * 1024 * 1024 // 25MB
     
     const invalidFiles = files.filter(file => {
       const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+      // Check file size
+      if (file.size > maxSize) {
+        return true
+      }
+      // Check file type
       return !validTypes.includes(file.type) && !validExtensions.includes(extension)
     })
     
     if (invalidFiles.length > 0) {
-      setError('Please select only Word documents (.doc or .docx files)')
-      return
-    }
-    
-    // Validate file size (max 10MB per file)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    const oversizedFiles = files.filter(file => file.size > maxSize)
-    
-    if (oversizedFiles.length > 0) {
-      setError('Each file must be less than 10MB')
+      setError('Please select only Word documents (.doc, .docx) or PDF files (.pdf). Maximum file size is 25MB per file.')
       return
     }
     
@@ -269,18 +269,35 @@ const CreateProject = () => {
         }
       }
       
-      // Prepare activities data
-      const activitiesData = activities.map(activity => ({
-        activityId: activity.activityId?.trim() || undefined,
-        name: activity.name?.trim() || undefined,
-        description: activity.description?.trim() || undefined,
-        budget: activity.budget ? parseFloat(activity.budget) : 0,
-        subActivities: (activity.subActivities || []).map(sub => ({
-          subactivityId: sub.subactivityId?.trim() || undefined,
-          name: sub.name?.trim() || undefined,
-          budget: sub.budget ? parseFloat(sub.budget) : 0
-        }))
-      }))
+      // Prepare activities data - filter out empty activities
+      const activitiesData = activities
+        .map(activity => {
+          // Filter out empty activities (no activityId, no name, no budget)
+          if (!activity.activityId?.trim() && !activity.name?.trim() && (!activity.budget || activity.budget === 0)) {
+            return null;
+          }
+          
+          return {
+            activityId: activity.activityId?.trim() || undefined,
+            name: activity.name?.trim() || undefined,
+            description: activity.description?.trim() || undefined,
+            budget: activity.budget ? parseFloat(activity.budget) : 0,
+            subActivities: (activity.subActivities || [])
+              .map(sub => {
+                // Filter out empty subactivities
+                if (!sub.subactivityId?.trim() && !sub.name?.trim() && (!sub.budget || sub.budget === 0)) {
+                  return null;
+                }
+                return {
+                  subactivityId: sub.subactivityId?.trim() || undefined,
+                  name: sub.name?.trim() || undefined,
+                  budget: sub.budget ? parseFloat(sub.budget) : 0
+                };
+              })
+              .filter(sub => sub !== null) // Remove null entries
+          };
+        })
+        .filter(activity => activity !== null) // Remove null entries
       
       const projectData = {
         projectId: projectId.trim(),
@@ -307,7 +324,8 @@ const CreateProject = () => {
         navigate('/program/projects')
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to create project. Please try again.'
+      console.error('Error creating project:', error.response?.data)
+      const errorMessage = error.response?.data?.message || error.response?.data?.errors?.[0] || 'Failed to create project. Please try again.'
       setError(errorMessage)
     } finally {
       setLoading(false)
@@ -511,27 +529,27 @@ const CreateProject = () => {
                   }}
                   className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="Education">Social Development Program</option>
-                  <option value="Welfare">Economic Development Program</option>
-                  <option value="Youth">Environmental and Climate Change Program</option>
-                  <option value="other">Research Advocacy and Network Program</option>
+                  <option value="Social Development Program">Social Development Program</option>
+                  <option value="Economic Development Program">Economic Development Program</option>
+                  <option value="Environmental and Climate Change Program">Environmental and Climate Change Program</option>
+                  <option value="Research Advocacy and Network Program">Research Advocacy and Network Program</option>
                 </select>
               </div>
             </div>
 
             <div className="border-t border-gray-200 my-10"></div>
             
-            {/* Word Documents Upload Section */}
+            {/* Supporting Documents Upload Section */}
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Supporting Documents</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Documents</h2>
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Attach Word Documents (Optional)
+                  Attach Documents (Word or PDF) - Optional (Max 25MB per file)
                 </label>
                 <input
                   type="file"
-                  accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                   multiple
                   onChange={handleDocumentChange}
                   className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"

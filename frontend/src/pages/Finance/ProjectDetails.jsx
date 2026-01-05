@@ -374,6 +374,90 @@ const ProjectDetails = () => {
           </div>
         </div>
 
+        {/* Attachments Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Supporting Documents</h2>
+          {project.documents && project.documents.length > 0 ? (
+            <div className="space-y-3">
+              {project.documents.map((documentUrl, index) => {
+                // Extract filename from URL
+                const fileName = documentUrl.split('/').pop().split('?')[0] || `Document ${index + 1}`;
+                // Determine file extension
+                const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+                const isWordDoc = fileExtension === 'doc' || fileExtension === 'docx';
+                const isPdf = fileExtension === 'pdf';
+                
+                // Determine icon and styling
+                let iconBg = 'bg-gray-100';
+                let iconColor = 'text-gray-600';
+                let fileTypeLabel = 'Document';
+                
+                if (isWordDoc) {
+                  iconBg = 'bg-blue-100';
+                  iconColor = 'text-blue-600';
+                  fileTypeLabel = 'Word Document';
+                } else if (isPdf) {
+                  iconBg = 'bg-red-100';
+                  iconColor = 'text-red-600';
+                  fileTypeLabel = 'PDF Document';
+                }
+                
+                return (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>
+                        {isWordDoc ? (
+                          <svg className={`w-6 h-6 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        ) : isPdf ? (
+                          <svg className={`w-6 h-6 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        ) : (
+                          <svg className={`w-6 h-6 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                        <p className="text-xs text-gray-500">{fileTypeLabel}</p>
+                      </div>
+                    </div>
+                    <a
+                      href={documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-4 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors flex items-center flex-shrink-0"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <svg
+                className="w-12 h-12 text-gray-400 mx-auto mb-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-sm text-gray-500">No supporting documents attached</p>
+            </div>
+          )}
+        </div>
+
         {/* Activities Section */}
             <div className="mb-4 sm:mb-6">
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Activities</h2>
