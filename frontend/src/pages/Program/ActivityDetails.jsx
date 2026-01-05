@@ -151,9 +151,9 @@ const ActivityDetails = () => {
     const statusMap = {
       'underspent': 'Underspent',
       'overspent': 'Overspent',
-      'balanced': 'Balanced'
+      'balanced': 'Spent'
     }
-    return statusMap[status] || 'Balanced'
+    return statusMap[status] || 'Spent'
   }
 
   const handleDeleteActivity = async () => {

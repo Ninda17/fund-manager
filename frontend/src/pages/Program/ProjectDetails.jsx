@@ -161,9 +161,9 @@ const ProjectDetails = () => {
     const statusMap = {
       'underspent': 'Underspent',
       'overspent': 'Overspent',
-      'balanced': 'Balanced'
+      'balanced': 'Spent'
     }
-    return statusMap[status] || 'Balanced'
+    return statusMap[status] || 'Spent'
   }
 
   const handleDeleteProject = async () => {
@@ -427,7 +427,7 @@ const ProjectDetails = () => {
 
         {/* Attachments Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Supporting Documents</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Project Documents</h2>
           {project.documents && project.documents.length > 0 ? (
             <div className="space-y-3">
               {project.documents.map((documentUrl, index) => {
