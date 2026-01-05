@@ -198,14 +198,14 @@ const MyProjects = () => {
   };
 
 
-  const getProgressBadgeStyle = (status) => {
-    const statusStyles = {
-      "Not Started": "bg-gray-100 text-gray-700 border-gray-200",
-      "In Progress": "bg-orange-100 text-orange-700 border-orange-200",
-      Completed: "bg-green-100 text-green-700 border-green-200",
-    };
-    return statusStyles[status] || statusStyles["Not Started"];
-  };
+  // const getProgressBadgeStyle = (status) => {
+  //   const statusStyles = {
+  //     "Not Started": "bg-gray-100 text-gray-700 border-gray-200",
+  //     "In Progress": "bg-orange-100 text-orange-700 border-orange-200",
+  //     Completed: "bg-green-100 text-green-700 border-green-200",
+  //   };
+  //   return statusStyles[status] || statusStyles["Not Started"];
+  // };
 
   const getBudgetStatus = (project) => {
     if (
@@ -419,9 +419,9 @@ const MyProjects = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Utilization
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Progress
-                      </th>
+                      </th> */}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
@@ -430,8 +430,8 @@ const MyProjects = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {projects.map((project) => {
                       const utilization = calculateUtilization(project);
-                      const progressStatus =
-                        project.projectStatus || "Not Started";
+                      // const progressStatus =
+                      //   project.projectStatus || "Not Started";
                       const budgetStatus = getBudgetStatus(project);
                       return (
                         <tr
@@ -501,7 +501,7 @@ const MyProjects = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          {/* <td className="px-6 py-4 whitespace-nowrap">
                             <span
                               className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getProgressBadgeStyle(
                                 progressStatus
@@ -509,7 +509,7 @@ const MyProjects = () => {
                             >
                               {progressStatus}
                             </span>
-                          </td>
+                          </td> */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span
                               className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold border ${getBudgetStatusBadgeStyle(
@@ -531,7 +531,7 @@ const MyProjects = () => {
             <div className="lg:hidden space-y-4">
               {projects.map((project) => {
                 const utilization = calculateUtilization(project);
-                const progressStatus = project.projectStatus || "Not Started";
+                // const progressStatus = project.projectStatus || "Not Started";
                 const budgetStatus = getBudgetStatus(project);
                 return (
                   <div
@@ -635,7 +635,7 @@ const MyProjects = () => {
                       </div>
 
                       {/* Progress */}
-                      <div className="pt-2 border-t border-gray-100">
+                      {/* <div className="pt-2 border-t border-gray-100">
                         <span className="text-xs text-gray-500 block mb-2">
                           Progress
                         </span>
@@ -646,7 +646,7 @@ const MyProjects = () => {
                         >
                           {progressStatus}
                         </span>
-                      </div>
+                      </div> */}
 
                       {/* Status */}
                       <div className="pt-2 border-t border-gray-100">

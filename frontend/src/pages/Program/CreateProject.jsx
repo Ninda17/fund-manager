@@ -556,7 +556,7 @@ const CreateProject = () => {
                   disabled={uploadingDocs || loading}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  You can select multiple Word documents (.doc, .docx). Max 10MB per file.
+                  You can select multiple Word documents (.doc, .docx). Max 25MB per file.
                 </p>
               </div>
               

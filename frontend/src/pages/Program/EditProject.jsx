@@ -482,10 +482,10 @@ const EditProject = () => {
                     }}
                     className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   >
-                    <option value="Education">Education</option>
-                    <option value="Welfare">Welfare</option>
-                    <option value="Youth">Youth</option>
-                    <option value="other">other</option>
+                    <option value="Social Development Program">Social Development Program</option>
+                    <option value="Economic Development Program">Economic Development Program</option>
+                    <option value="Environmental and Climate Change Program">Environmental and Climate Change Program</option>
+                    <option value="Research Advocacy and Network Program">Research Advocacy and Network Program</option>
                   </select>
                 </div>
                 

@@ -134,7 +134,7 @@ const ProjectDetail = () => {
     if (!project || !project.amountDonated || project.amountDonated === 0)
       return 0;
     const totalExpense = project.totalExpense || 0;
-    return Math.min((totalExpense / project.amountDonated) * 100, 100);
+    return Math.min((totalExpense / project.amountDonated) * 100);
   };
 
   const calculateRemainingBudget = () => {

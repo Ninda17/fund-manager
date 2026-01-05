@@ -21,20 +21,6 @@ const createProject = async (req, res) => {
       documents,
     } = req.body;
 
-    // Debug logging
-    console.log("Create project request data:", {
-      projectId,
-      title,
-      startDate,
-      endDate,
-      financePersonnel,
-      donorName,
-      amountDonated,
-      currency,
-      projectType,
-      activitiesCount: activities?.length || 0,
-      documentsCount: documents?.length || 0
-    });
 
     // Validate required fields
     if (!projectId || !title || !startDate || !endDate || !financePersonnel || !donorName || !amountDonated) {
@@ -795,7 +781,7 @@ const updateProject = async (req, res) => {
 
     // Update projectType if provided
     if (projectType !== undefined) {
-      const validProjectTypes = ["Education", "Welfare", "Youth", "other"];
+      const validProjectTypes = ["Social Development Program", "Economic Development Program", "Environmental and Climate Change Program", "Research Advocacy and Network Program"];
       if (!validProjectTypes.includes(projectType)) {
         return res.status(400).json({
           success: false,
