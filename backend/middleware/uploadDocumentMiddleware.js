@@ -16,16 +16,17 @@ const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-word.document.macroEnabled.12"
+    "application/vnd.ms-word.document.macroEnabled.12",
+    "application/pdf"
   ];
   
-  const allowedExtensions = [".doc", ".docx"];
+  const allowedExtensions = [".doc", ".docx", ".pdf"];
   const fileExtension = file.originalname.substring(file.originalname.lastIndexOf(".")).toLowerCase();
   
   if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
     cb(null, true);
   } else {
-    cb(new Error("Only .doc and .docx files are allowed"), false);
+    cb(new Error("Only .doc, .docx, and .pdf files are allowed"), false);
   }
 };
 
@@ -33,7 +34,7 @@ const uploadDocumentMulter = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 25 * 1024 * 1024, // 25MB limit
   },
 });
 

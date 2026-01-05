@@ -13,9 +13,11 @@ const {
   getAllReallocationRequests,
   getReallocationRequestById,
   updateProject,
-  getDashboardData
+  getDashboardData,
+  uploadDocument
 } = require("../controllers/programController");
 const { protect, programOnly } = require("../middleware/authMiddleware");
+const { uploadDocument: uploadDocumentMiddleware } = require("../middleware/uploadDocumentMiddleware");
 
 
 // All program routes require authentication and program role
@@ -55,6 +57,20 @@ router.get("/reallocation-requests/:id", getReallocationRequestById);
 
 // Get dashboard data
 router.get("/dashboard", getDashboardData);
+
+// Upload document route (protected)
+router.post("/upload-document", protect, programOnly, (req, res, next) => {
+    uploadDocumentMiddleware(req, res, (err) => {
+        if (err) {
+            console.error("Multer error:", err);
+            return res.status(400).json({
+                success: false,
+                message: err.message || "File upload error. Please check file type and size.",
+            });
+        }
+        next();
+    });
+}, uploadDocument);
 
 module.exports = router;
 

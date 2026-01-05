@@ -9,7 +9,6 @@ export const API_PATHS = {
     PROFILE: `${API_BASE}/auth/profile`,
     UPDATE_PASSWORD: `${API_BASE}/auth/update-password`,
     UPLOAD_IMAGE: `${API_BASE}/auth/upload-image`,
-    UPLOAD_DOCUMENT: `${API_BASE}/auth/upload-document`,
     FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
     RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
     VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
@@ -44,6 +43,7 @@ export const API_PATHS = {
     DELETE_SUBACTIVITY: (projectId, activityId, subactivityId) =>
       `${API_BASE}/program/projects/${projectId}/activities/${activityId}/subactivities/${subactivityId}`,
     FINANCE_PERSONNEL: `${API_BASE}/program/finance-personnel`,
+    UPLOAD_DOCUMENT: `${API_BASE}/program/upload-document`,
     // Reallocation endpoints
     CREATE_REALLOCATION_REQUEST: `${API_BASE}/program/reallocation-requests`,
     GET_REALLOCATION_REQUESTS: `${API_BASE}/program/reallocation-requests`,

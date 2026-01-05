@@ -21,6 +21,21 @@ const createProject = async (req, res) => {
       documents,
     } = req.body;
 
+    // Debug logging
+    console.log("Create project request data:", {
+      projectId,
+      title,
+      startDate,
+      endDate,
+      financePersonnel,
+      donorName,
+      amountDonated,
+      currency,
+      projectType,
+      activitiesCount: activities?.length || 0,
+      documentsCount: documents?.length || 0
+    });
+
     // Validate required fields
     if (!projectId || !title || !startDate || !endDate || !financePersonnel || !donorName || !amountDonated) {
       return res.status(400).json({
@@ -119,28 +134,37 @@ const createProject = async (req, res) => {
 
     // Validate activities structure if provided
     if (activities && Array.isArray(activities)) {
-      for (const activity of activities) {
-        if (!activity.activityId || !activity.name) {
+      for (let i = 0; i < activities.length; i++) {
+        const activity = activities[i];
+        
+        // Filter out empty activities (activities with no data)
+        if (!activity.activityId && !activity.name && (!activity.budget || activity.budget === 0)) {
+          continue; // Skip empty activities
+        }
+        
+        // If activity has any data, it must have activityId and name
+        if (!activity.activityId || !activity.name || !activity.activityId.trim() || !activity.name.trim()) {
           return res.status(400).json({
             success: false,
-            message: "Each activity must have activityId and name",
+            message: `Activity ${i + 1} must have both activityId and name`,
           });
         }
 
         // Validate subActivities if provided
         if (activity.subActivities && Array.isArray(activity.subActivities)) {
-          for (const subActivity of activity.subActivities) {
-            if (!subActivity.subactivityId) {
-              return res.status(400).json({
-                success: false,
-                message: "Each sub-activity must have a subactivityId",
-              });
+          for (let j = 0; j < activity.subActivities.length; j++) {
+            const subActivity = activity.subActivities[j];
+            
+            // Filter out empty subactivities
+            if (!subActivity.subactivityId && !subActivity.name && (!subActivity.budget || subActivity.budget === 0)) {
+              continue; // Skip empty subactivities
             }
             
-            if (!subActivity.name) {
+            // If subactivity has any data, it must have subactivityId and name
+            if (!subActivity.subactivityId || !subActivity.name || !subActivity.subactivityId.trim() || !subActivity.name.trim()) {
               return res.status(400).json({
                 success: false,
-                message: "Each sub-activity must have a name",
+                message: `Sub-activity ${j + 1} in Activity ${i + 1} must have both subactivityId and name`,
               });
             }
 
@@ -150,7 +174,7 @@ const createProject = async (req, res) => {
               if (isNaN(budget) || budget < 0) {
                 return res.status(400).json({
                   success: false,
-                  message: "Sub-activity budget must be a non-negative number",
+                  message: `Sub-activity ${j + 1} in Activity ${i + 1} budget must be a non-negative number`,
                 });
               }
             }
@@ -163,7 +187,7 @@ const createProject = async (req, res) => {
           if (isNaN(budget) || budget < 0) {
             return res.status(400).json({
               success: false,
-              message: "Activity budget must be a non-negative number",
+              message: `Activity ${i + 1} budget must be a non-negative number`,
             });
           }
         }
