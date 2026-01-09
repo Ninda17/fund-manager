@@ -3,6 +3,7 @@
 # ===============================
 stages:
   - install
+  - lint
   - test
 
 # ===============================
@@ -48,6 +49,31 @@ install_frontend:
     paths:
       - frontend/node_modules/
     expire_in: 1 hour
+
+# ===============================
+# LINT STAGE
+# ===============================
+lint_backend:
+  stage: lint
+  dependencies:
+    - install_backend
+  script:
+    - echo "Running ESLint for backend..."
+    - cd backend
+    - npm run lint -- --max-warnings=0 || (echo "❌ Backend linting FAILED - Pipeline will be blocked" && exit 1)
+    - echo "✅ Backend linting passed - No errors or warnings"
+  allow_failure: false # Pipeline will FAIL if linting fails (not just alert)
+
+lint_frontend:
+  stage: lint
+  dependencies:
+    - install_frontend
+  script:
+    - echo "Running ESLint for frontend..."
+    - cd frontend
+    - npm run lint -- --max-warnings=0 || (echo "❌ Frontend linting FAILED - Pipeline will be blocked" && exit 1)
+    - echo "✅ Frontend linting passed - No errors or warnings"
+  allow_failure: false # Pipeline will FAIL if linting fails (not just alert)
 
 # ===============================
 # TEST STAGE – BACKEND AUDIT

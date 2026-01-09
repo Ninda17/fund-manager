@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/Layout/DashboardLayout";
 import axiosInstance from "../../utils/axiosInstance";
@@ -14,7 +14,7 @@ const UserDetails = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [status, setStatus] = useState("pending");
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -26,11 +26,11 @@ const UserDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchUser();
-  }, [id]);
+  }, [fetchUser]);
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
@@ -73,12 +73,6 @@ const UserDetails = () => {
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
-
-  // Function to get user's first name for avatar
-  const getFirstName = (name) => {
-    if (!name) return "User";
-    return name.split(" ")[0];
   };
 
   if (loading)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
@@ -13,9 +13,31 @@ const Reallocations = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
+  const fetchRequests = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const url = statusFilter 
+        ? `${API_PATHS.FINANCE.GET_REALLOCATION_REQUESTS}?status=${statusFilter}`
+        : API_PATHS.FINANCE.GET_REALLOCATION_REQUESTS
+      
+      const response = await axiosInstance.get(url)
+      if (response.data.success) {
+        const requestsData = response.data.data || []
+        setAllRequests(requestsData)
+        setRequests(requestsData)
+      }
+    } catch (error) {
+      console.error('Error fetching reallocation requests:', error)
+      setError(error.response?.data?.message || 'Failed to load reallocation requests.')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter])
+
   useEffect(() => {
     fetchRequests()
-  }, [])
+  }, [fetchRequests])
 
   useEffect(() => {
     let filtered = [...allRequests]
@@ -56,28 +78,6 @@ const Reallocations = () => {
 
     setRequests(filtered)
   }, [statusFilter, searchQuery, allRequests])
-
-  const fetchRequests = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const url = statusFilter 
-        ? `${API_PATHS.FINANCE.GET_REALLOCATION_REQUESTS}?status=${statusFilter}`
-        : API_PATHS.FINANCE.GET_REALLOCATION_REQUESTS
-      
-      const response = await axiosInstance.get(url)
-      if (response.data.success) {
-        const requestsData = response.data.data || []
-        setAllRequests(requestsData)
-        setRequests(requestsData)
-      }
-    } catch (error) {
-      console.error('Error fetching reallocation requests:', error)
-      setError(error.response?.data?.message || 'Failed to load reallocation requests.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
 
   const formatDate = (dateString) => {

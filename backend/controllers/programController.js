@@ -460,7 +460,7 @@ const getFinancePersonnel = async (req, res) => {
       count: financeUsers.length,
       data: financeUsers,
     });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
@@ -494,7 +494,7 @@ const getAllProjects = async (req, res) => {
       count: projectsData.length,
       data: projectsData,
     });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
@@ -11,13 +11,7 @@ const RequestDetails = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (id) {
-      fetchRequestDetails()
-    }
-  }, [id])
-
-  const fetchRequestDetails = async () => {
+  const fetchRequestDetails = useCallback(async () => {
     try {
       setLoading(true)
       setError('')
@@ -31,7 +25,13 @@ const RequestDetails = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      fetchRequestDetails()
+    }
+  }, [id, fetchRequestDetails])
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'

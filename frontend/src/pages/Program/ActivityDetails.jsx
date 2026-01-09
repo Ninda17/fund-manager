@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
@@ -16,11 +16,28 @@ const ActivityDetails = () => {
   const [deleting, setDeleting] = useState(false)
   const [deletingSubActivity, setDeletingSubActivity] = useState(null)
 
+  const fetchActivityDetails = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await axiosInstance.get(API_PATHS.PROGRAM.GET_ACTIVITY_BY_ID(projectId, activityId))
+      if (response.data.success) {
+        setActivity(response.data.data.activity)
+        setProject(response.data.data.project)
+      }
+    } catch (error) {
+      console.error('Error fetching activity details:', error)
+      setError(error.response?.data?.message || 'Failed to load activity details. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId, activityId])
+
   useEffect(() => {
     if (projectId && activityId) {
       fetchActivityDetails()
     }
-  }, [projectId, activityId])
+  }, [projectId, activityId, fetchActivityDetails])
 
   // Filter sub-activities based on search query
   useEffect(() => {
@@ -67,23 +84,6 @@ const ActivityDetails = () => {
 
     setFilteredSubActivities(filtered)
   }, [searchQuery, activity, project])
-
-  const fetchActivityDetails = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const response = await axiosInstance.get(API_PATHS.PROGRAM.GET_ACTIVITY_BY_ID(projectId, activityId))
-      if (response.data.success) {
-        setActivity(response.data.data.activity)
-        setProject(response.data.data.project)
-      }
-    } catch (error) {
-      console.error('Error fetching activity details:', error)
-      setError(error.response?.data?.message || 'Failed to load activity details. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const formatCurrency = (amount, currency) => {
     if (amount === null || amount === undefined) return 'N/A'

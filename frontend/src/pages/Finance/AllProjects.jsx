@@ -68,8 +68,8 @@ const AllProjects = () => {
             startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
             startDateDay = startDate.getDate().toString()
           }
-        } catch (e) {
-          e
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 
@@ -82,8 +82,8 @@ const AllProjects = () => {
             endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
             endDateDay = endDate.getDate().toString()
           }
-        } catch (e) {
-          e
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 

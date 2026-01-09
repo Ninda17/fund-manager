@@ -9,7 +9,7 @@ const { Op } = require('sequelize');
 const cleanupExpiredOTPs = async () => {
   try {
     const now = new Date();
-    const deletedCount = await OTP.destroy({
+    const _deletedCount = await OTP.destroy({
       where: {
         expiresAt: {
           [Op.lt]: now, // expiresAt < now
@@ -32,7 +32,7 @@ const cleanupExpiredOTPs = async () => {
 const cleanupUnverifiedUsers = async () => {
   try {
     const now = new Date();
-    const deletedCount = await User.destroy({
+    const _deletedCount = await User.destroy({
       where: {
         deleteAfter: {
           [Op.lt]: now, // deleteAfter < now
