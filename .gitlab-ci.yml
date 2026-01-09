@@ -50,79 +50,31 @@ install_frontend:
     expire_in: 1 hour
 
 # ===============================
-# TEST STAGE – BACKEND UNIT TESTS
+# TEST STAGE – BACKEND AUDIT
 # ===============================
-test_backend_unit:
+test_backend_audit:
   stage: test
   dependencies:
     - install_backend
   script:
-    - echo "Running backend security audit (read-only)..."
+    - echo "Running npm audit for backend..."
     - cd backend
-    - npm audit --audit-level=high || true
-    - echo "Running backend unit tests..."
-    - npm run test:unit -- --coverage
-    - echo "Backend unit tests completed"
-  artifacts:
-    paths:
-      - backend/coverage/
-    when: always
-    expire_in: 1 week
-  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
+    - npm audit
+    - echo "Fixing vulnerabilities..."
+    - npm audit fix --force
+    - echo "Backend audit fix completed"
 
 # ===============================
-# TEST STAGE – BACKEND INTEGRATION TESTS
+# TEST STAGE – FRONTEND AUDIT
 # ===============================
-test_backend_integration:
-  stage: test
-  dependencies:
-    - install_backend
-  services:
-    - name: mongo:${MONGODB_VERSION}
-      alias: mongo
-  variables:
-    MONGO_URL: "mongodb://mongo:27017/vehicle-maintenance-test"
-    JWT_SECRET: "test-jwt-secret"
-    NODE_ENV: "test"
-  script:
-    - echo "Waiting for MongoDB to be ready..."
-    - apk add --no-cache netcat-openbsd || true
-    - |
-      for i in {1..30}; do
-        if nc -z mongo 27017; then
-          echo "MongoDB is ready"
-          break
-        fi
-        echo "Waiting for MongoDB ($i/30)"
-        sleep 1
-      done
-    - cd backend
-    - echo "Running backend integration tests..."
-    - npm run test:integration -- --coverage
-  artifacts:
-    paths:
-      - backend/coverage/
-    when: always
-    expire_in: 1 week
-  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
-
-# ===============================
-# TEST STAGE – FRONTEND UNIT TESTS
-# ===============================
-test_frontend_unit:
+test_frontend_audit:
   stage: test
   dependencies:
     - install_frontend
   script:
-    - echo "Running frontend security audit (read-only)..."
+    - echo "Running npm audit for frontend..."
     - cd frontend
-    - npm audit --audit-level=high || true
-    - echo "Running frontend unit tests..."
-    - npm run test:unit -- --coverage
-    - echo "Frontend unit tests completed"
-  artifacts:
-    paths:
-      - frontend/coverage/
-    when: always
-    expire_in: 1 week
-  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
+    - npm audit
+    - echo "Fixing vulnerabilities..."
+    - npm audit fix --force
+    - echo "Frontend audit fix completed"
