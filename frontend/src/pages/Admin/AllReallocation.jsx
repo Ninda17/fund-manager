@@ -54,12 +54,14 @@ const AllReallocation = () => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((req) => {
         const sourceProject =
-          req.sourceProjectId?.projectId || req.sourceProjectId?._id || "";
+          req.sourceProject?.projectId || req.sourceProjectId?.projectId || req.sourceProjectId?.id?.toString() || req.sourceProjectId?._id?.toString() || "";
         const destProject =
+          req.destinationProject?.projectId ||
           req.destinationProjectId?.projectId ||
-          req.destinationProjectId?._id ||
+          req.destinationProjectId?.id?.toString() ||
+          req.destinationProjectId?._id?.toString() ||
           "";
-        const project = req.projectId?.projectId || req.projectId?._id || "";
+        const project = req.project?.projectId || req.projectId?.projectId || req.projectId?.id?.toString() || req.projectId?._id?.toString() || "";
         const amountStr = req.amount?.toString() || "";
         const reasonStr = (req.reason || "").toLowerCase();
         const statusStr = (req.status || "").toLowerCase();
@@ -97,14 +99,14 @@ const AllReallocation = () => {
 
   const getSourceDisplay = (request) => {
     if (request.requestType === "project_to_project") {
-      const project = request.sourceProjectId;
+      const project = request.sourceProject || request.sourceProjectId;
       return project?.projectId || project?.title || "N/A";
     } else if (request.requestType === "activity_to_activity") {
-      const project = request.projectId;
+      const project = request.project || request.projectId;
       const projectName = project?.projectId || project?.title || "N/A";
       return `${projectName} - Activity`;
     } else if (request.requestType === "subactivity_to_subactivity") {
-      const project = request.projectId;
+      const project = request.project || request.projectId;
       const projectName = project?.projectId || project?.title || "N/A";
       return `${projectName} - Subactivity`;
     }
@@ -113,14 +115,14 @@ const AllReallocation = () => {
 
   const getDestinationDisplay = (request) => {
     if (request.requestType === "project_to_project") {
-      const project = request.destinationProjectId;
+      const project = request.destinationProject || request.destinationProjectId;
       return project?.projectId || project?.title || "N/A";
     } else if (request.requestType === "activity_to_activity") {
-      const project = request.projectId;
+      const project = request.project || request.projectId;
       const projectName = project?.projectId || project?.title || "N/A";
       return `${projectName} - Activity`;
     } else if (request.requestType === "subactivity_to_subactivity") {
-      const project = request.projectId;
+      const project = request.project || request.projectId;
       const projectName = project?.projectId || project?.title || "N/A";
       return `${projectName} - Subactivity`;
     }
@@ -363,10 +365,10 @@ const AllReallocation = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {requests.map((request) => (
                       <tr
-                        key={request._id}
+                        key={request.id || request._id}
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
                         onClick={() =>
-                          navigate(`/admin/allreallocation/${request._id}`)
+                          navigate(`/admin/allreallocation/${request.id || request._id}`)
                         }
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -457,10 +459,10 @@ const AllReallocation = () => {
             <div className="lg:hidden space-y-4">
               {requests.map((request) => (
                 <div
-                  key={request._id}
+                  key={request.id || request._id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() =>
-                    navigate(`/admin/allreallocation/${request._id}`)
+                    navigate(`/admin/allreallocation/${request.id || request._id}`)
                   }
                 >
                   <div className="space-y-3">

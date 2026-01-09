@@ -452,7 +452,7 @@ const CreateProject = () => {
                   >
                     <option value="">Select finance personnel</option>
                     {financeUsers.map(user => (
-                      <option key={user._id} value={user._id}>
+                      <option key={user.id || user._id} value={user.id || user._id}>
                         {user.name} ({user.email})
                       </option>
                     ))}

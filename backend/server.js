@@ -2,7 +2,9 @@ require("dotenv").config();
 const express = require("express")
 const cors = require("cors")
 const path = require("path");
-const connectDB = require("./config/database");
+const { connectDB } = require("./config/database");
+const { syncDB } = require("./models"); // Import syncDB from models
+const { initializeCleanupJobs } = require("./utils/cleanupJobs"); // Import cleanup jobs
 
 const authRoutes = require("./routes/authRoutes")
 const adminRoutes = require("./routes/adminRoutes")
@@ -20,7 +22,19 @@ app.use(
     })
 )
 
-connectDB();
+// Initialize database connection and sync tables
+const startServer = async () => {
+  try {
+    await connectDB(); // Connect to MySQL
+    await syncDB(); // Sync tables (create if they don't exist)
+    await initializeCleanupJobs(); // Start cleanup jobs (runs initial cleanup + schedules future runs)
+  } catch (error) {
+    console.error("Failed to initialize server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 //middleware
 app.use(express.json());

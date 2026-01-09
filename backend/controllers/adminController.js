@@ -1,29 +1,95 @@
-const User = require("../models/userModel");
-const Project = require("../models/projectModel");
-const ReallocationRequest = require("../models/reallocationRequestModel");
-const ActivityLog = require("../models/activityLogModel");
+const { User, Project, ReallocationRequest, ActivityLog, Activity, SubActivity, ProjectDocument } = require("../models");
+const { Op } = require("sequelize");
+const { decrypt } = require("../utils/encryption");
+
+// Helper function to decrypt nested activities and subactivities
+const decryptActivityData = (activity) => {
+  if (!activity) return activity;
+  
+  const decryptField = (encryptedValue, returnType = 'string') => {
+    if (!encryptedValue || typeof encryptedValue !== 'string') {
+      return encryptedValue;
+    }
+    
+    // Check if encrypted (contains ':')
+    if (!encryptedValue.includes(':')) {
+      return encryptedValue;
+    }
+    
+    try {
+      const decrypted = decrypt(encryptedValue);
+      
+      if (returnType === 'number') {
+        return parseFloat(decrypted) || 0;
+      }
+      
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      return encryptedValue; // Return as-is if decryption fails
+    }
+  };
+  
+  // Decrypt activity fields (check for null/undefined, but also handle empty strings)
+  if (activity.name !== null && activity.name !== undefined) {
+    activity.name = decryptField(activity.name);
+  }
+  if (activity.description !== null && activity.description !== undefined) {
+    activity.description = decryptField(activity.description);
+  }
+  if (activity.budget !== null && activity.budget !== undefined) {
+    activity.budget = decryptField(activity.budget, 'number');
+  }
+  if (activity.expense !== null && activity.expense !== undefined) {
+    activity.expense = decryptField(activity.expense, 'number');
+  }
+  
+  // Decrypt subactivities if present
+  if (activity.subActivities && Array.isArray(activity.subActivities)) {
+    activity.subActivities.forEach(subActivity => {
+      if (subActivity.name !== null && subActivity.name !== undefined) {
+        subActivity.name = decryptField(subActivity.name);
+      }
+      if (subActivity.budget !== null && subActivity.budget !== undefined) {
+        subActivity.budget = decryptField(subActivity.budget, 'number');
+      }
+      if (subActivity.expense !== null && subActivity.expense !== undefined) {
+        subActivity.expense = decryptField(subActivity.expense, 'number');
+      }
+    });
+  }
+  
+  return activity;
+};
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']],
+    });
 
     // Get project count for each user
     const usersWithProjectCount = await Promise.all(
       users.map(async (user) => {
         // Count projects where user is either programPersonnel or financePersonnel
-        const programProjectCount = await Project.countDocuments({
-          programPersonnel: user._id,
+        const programProjectCount = await Project.count({
+          where: {
+            programPersonnelId: user.id,
+          },
         });
 
-        const financeProjectCount = await Project.countDocuments({
-          financePersonnel: user._id,
+        const financeProjectCount = await Project.count({
+          where: {
+            financePersonnelId: user.id,
+          },
         });
 
         // Total projects associated with this user
         const totalProjectCount = programProjectCount + financeProjectCount;
 
         // Convert user to plain object and add projectCount
-        const userObject = user.toObject();
+        const userObject = user.toJSON();
         return {
           ...userObject,
           projectCount: totalProjectCount,
@@ -53,15 +119,18 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate MongoDB ObjectId format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate integer ID format
+    const userId = parseInt(id);
+    if (isNaN(userId) || userId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid user ID format",
       });
     }
 
-    const user = await User.findById(id).select("-password");
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] },
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -88,15 +157,16 @@ const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate MongoDB ObjectId format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate integer ID format
+    const userId = parseInt(id);
+    if (isNaN(userId) || userId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid user ID format",
       });
     }
 
-    const user = await User.findById(id);
+    const user = await User.findByPk(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -114,14 +184,14 @@ const deleteUser = async (req, res) => {
     }
 
     // Prevent deleting yourself
-    if (user._id.toString() === req.user._id.toString()) {
+    if (user.id === req.user.id) {
       return res.status(403).json({
         success: false,
         message: "Cannot delete your own account",
       });
     }
 
-    await User.findByIdAndDelete(id);
+    await user.destroy();
 
     res.status(200).json({
       success: true,
@@ -141,8 +211,9 @@ const updateUserApproval = async (req, res) => {
     const { id } = req.params;
     const { isApproved } = req.body;
 
-    // Validate MongoDB ObjectId format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate integer ID format
+    const userId = parseInt(id);
+    if (isNaN(userId) || userId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid user ID format",
@@ -158,7 +229,7 @@ const updateUserApproval = async (req, res) => {
       });
     }
 
-    const user = await User.findById(id);
+    const user = await User.findByPk(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -167,7 +238,7 @@ const updateUserApproval = async (req, res) => {
       });
     }
 
-    // Admin accounts are always approved (handled by pre-save hook)
+    // Admin accounts are always approved (handled by beforeCreate hook)
     if (user.role === "admin") {
       return res.status(400).json({
         success: false,
@@ -199,7 +270,7 @@ const updateUserApproval = async (req, res) => {
       success: true,
       message,
       data: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -209,9 +280,9 @@ const updateUserApproval = async (req, res) => {
   } catch (error) {
     console.error("Update user approval error:", error);
     
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -230,43 +301,52 @@ const updateUserApproval = async (req, res) => {
 const getAllProjectsAdmin = async (req, res) => {
   try {
     // Fetch all projects in the database
-    const projects = await Project.find()
-      .select(
-        "projectId title startDate endDate financePersonnel amountDonated currency totalExpense projectStatus programPersonnel"
-      )
-      .populate("financePersonnel", "name email")
-      .populate("programPersonnel", "name email") // show the program manager who created it
-      .lean()
-      .sort({ createdAt: -1 });
+    const projects = await Project.findAll({
+      attributes: [
+        "id",
+        "projectId",
+        "title",
+        "startDate",
+        "endDate",
+        "amountDonated",
+        "currency",
+        "totalExpense",
+        "projectStatus",
+        "programPersonnelId",
+        "financePersonnelId",
+        "createdAt",
+      ],
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
-    // Decrypt fields if encrypted
-    const { decrypt } = require("../utils/encryption");
-    const decryptedProjects = projects.map((project) => {
-      const p = { ...project };
-
-      if (p.amountDonated && typeof p.amountDonated === "string" && p.amountDonated.includes(":")) {
-        p.amountDonated = parseFloat(decrypt(p.amountDonated)) || 0;
+    // Projects are already decrypted by model hooks
+    const projectsData = projects.map((project) => project.toJSON());
+    
+    // Manually decrypt nested activities if present (hooks may not run for nested includes)
+    projectsData.forEach(project => {
+      if (project.activities && Array.isArray(project.activities)) {
+        project.activities.forEach(activity => {
+          decryptActivityData(activity);
+        });
       }
-      if (p.totalExpense && typeof p.totalExpense === "string" && p.totalExpense.includes(":")) {
-        p.totalExpense = parseFloat(decrypt(p.totalExpense)) || 0;
-      }
-      if (p.startDate && typeof p.startDate === "string" && p.startDate.includes(":")) {
-        p.startDate = new Date(decrypt(p.startDate));
-      }
-      if (p.endDate && typeof p.endDate === "string" && p.endDate.includes(":")) {
-        p.endDate = new Date(decrypt(p.endDate));
-      }
-      if (p.currency && typeof p.currency === "string" && p.currency.includes(":")) {
-        p.currency = decrypt(p.currency);
-      }
-
-      return p;
     });
 
     res.status(200).json({
       success: true,
-      count: decryptedProjects.length,
-      data: decryptedProjects,
+      count: projectsData.length,
+      data: projectsData,
     });
   } catch (err) {
     console.error("Error fetching all projects for admin:", err);
@@ -282,18 +362,42 @@ const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate MongoDB ObjectId
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate integer ID format
+    if (!Number.isInteger(parseInt(id))) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid project ID format" });
     }
 
     // Admin can fetch any project
-    const project = await Project.findById(id)
-      .populate("financePersonnel", "name email")
-      .populate("programPersonnel", "name email")
-      .lean();
+    const project = await Project.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+        {
+          model: ProjectDocument,
+          as: "documents",
+        },
+      ],
+    });
 
     if (!project) {
       return res
@@ -301,54 +405,32 @@ const getProjectById = async (req, res) => {
         .json({ success: false, message: "Project not found" });
     }
 
-    // Decrypt fields
-    const { decrypt } = require("../utils/encryption");
-    const decryptField = (field) =>
-      field && typeof field === "string" && field.includes(":")
-        ? decrypt(field)
-        : field;
-
-    const decrypted = {
-      ...project,
-      donorName: decryptField(project.donorName),
-      description: decryptField(project.description),
-      amountDonated: parseFloat(decryptField(project.amountDonated)) || 0,
-      startDate: project.startDate
-        ? new Date(decryptField(project.startDate))
-        : null,
-      endDate: project.endDate ? new Date(decryptField(project.endDate)) : null,
-      currency: decryptField(project.currency),
-      projectType: decryptField(project.projectType),
-      totalExpense: parseFloat(decryptField(project.totalExpense)) || 0,
-    };
-
-    // Decrypt activities recursively
-    if (decrypted.activities && Array.isArray(decrypted.activities)) {
-      decrypted.activities = decrypted.activities.map((activity) => {
-        const decryptedActivity = { ...activity };
-        decryptedActivity.name = decryptField(activity.name);
-        decryptedActivity.description = decryptField(activity.description);
-        decryptedActivity.budget =
-          parseFloat(decryptField(activity.budget)) || 0;
-        decryptedActivity.expense =
-          parseFloat(decryptField(activity.expense)) || 0;
-
-        if (activity.subActivities && Array.isArray(activity.subActivities)) {
-          decryptedActivity.subActivities = activity.subActivities.map(
-            (sub) => ({
-              ...sub,
-              name: decryptField(sub.name),
-              budget: parseFloat(decryptField(sub.budget)) || 0,
-              expense: parseFloat(decryptField(sub.expense)) || 0,
-            })
-          );
-        }
-
-        return decryptedActivity;
+    // Project fields are already decrypted by model hooks
+    const projectData = project.toJSON();
+    
+    // Manually decrypt nested activities and subactivities (hooks may not run for nested includes)
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      projectData.activities.forEach(activity => {
+        decryptActivityData(activity);
       });
     }
+    
+    // Transform documents array: Sequelize returns objects, but frontend expects array of URL strings
+    if (projectData.documents && Array.isArray(projectData.documents)) {
+      projectData.documents = projectData.documents.map(doc => {
+        if (doc && typeof doc === 'object' && doc.documentUrl) {
+          return doc.documentUrl;
+        }
+        if (typeof doc === 'string') {
+          return doc;
+        }
+        return doc?.documentUrl || doc;
+      }).filter(url => url);
+    } else if (!projectData.documents) {
+      projectData.documents = [];
+    }
 
-    res.status(200).json({ success: true, data: decrypted });
+    res.status(200).json({ success: true, data: projectData });
   } catch (error) {
     console.error("Error fetching project details:", error);
     res
@@ -366,9 +448,6 @@ const getActivityById = async (req, res) => {
   try {
     const { activityId } = req.params;
 
-    // For admin, we don't need projectId, just activityId
-    // activityId can be MongoDB ObjectId or activityId field (like "102")
-
     // Check admin access
     if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({
@@ -377,39 +456,41 @@ const getActivityById = async (req, res) => {
       });
     }
 
-    // Find the project that contains this activity
-    let project = null;
+    // Find activity - can be by ID (integer) or activityId (string)
     let activity = null;
-    const mongoose = require('mongoose');
-
-    // Strategy 1: Search by activityId field (like "102")
-    project = await Project.findOne({
-      "activities.activityId": activityId
-    }).lean();
-
-    if (project && project.activities) {
-      activity = project.activities.find(
-        (act) => act.activityId && act.activityId.toString() === activityId
-      );
+    
+    // Strategy 1: Search by integer ID
+    if (Number.isInteger(parseInt(activityId))) {
+      activity = await Activity.findByPk(activityId, {
+        include: [
+          {
+            model: Project,
+            as: "project",
+            attributes: ["id", "projectId", "title", "currency"],
+          },
+          {
+            model: SubActivity,
+            as: "subActivities",
+          },
+        ],
+      });
     }
-
-    // Strategy 2: Search by MongoDB _id
-    if (!activity && mongoose.Types.ObjectId.isValid(activityId)) {
-      project = await Project.findOne({
-        "activities._id": new mongoose.Types.ObjectId(activityId)
-      }).lean();
-
-      if (project && project.activities) {
-        activity = project.activities.find(
-          (act) => act._id && act._id.toString() === activityId
-        );
-      }
-    }
-
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found",
+    
+    // Strategy 2: Search by activityId field (string like "102")
+    if (!activity) {
+      activity = await Activity.findOne({
+        where: { activityId: activityId },
+        include: [
+          {
+            model: Project,
+            as: "project",
+            attributes: ["id", "projectId", "title", "currency"],
+          },
+          {
+            model: SubActivity,
+            as: "subActivities",
+          },
+        ],
       });
     }
 
@@ -420,71 +501,37 @@ const getActivityById = async (req, res) => {
       });
     }
 
-    // Decrypt all encrypted fields manually
-    const { decrypt } = require("../utils/encryption");
-    const decryptedActivity = { ...activity };
+    // Activity fields are already decrypted by model hooks
+    const activityData = activity.toJSON();
     
-    // Decrypt activity name
-    if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
-      decryptedActivity.name = decrypt(decryptedActivity.name);
-    }
+    // Manually decrypt nested subactivities (hooks may not run for nested includes)
+    decryptActivityData(activityData);
     
-    // Decrypt activity description
-    if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
-      decryptedActivity.description = decrypt(decryptedActivity.description);
-    }
-    
-    // Decrypt activity budget
-    if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
-      decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
-    }
-    
-    // Decrypt activity expense
-    if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
-      decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
-    }
-    
-    // Decrypt subActivities
-    if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
-      decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
-        const decryptedSubActivity = { ...subActivity };
-        
-        // Decrypt sub activity name
-        if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
-          decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
+    // Manually decrypt project currency if present (hooks may not run for nested includes)
+    const projectInfo = activityData.project;
+    if (projectInfo && projectInfo.currency) {
+      const decryptField = (encryptedValue) => {
+        if (!encryptedValue || typeof encryptedValue !== 'string') {
+          return encryptedValue;
         }
-        
-        // Decrypt sub activity budget
-        if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
-          decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
+        if (!encryptedValue.includes(':')) {
+          return encryptedValue; // Not encrypted
         }
-        
-        // Decrypt sub activity expense
-        if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
-          decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
+        try {
+          return decrypt(encryptedValue);
+        } catch (error) {
+          console.error('Decryption error for project currency:', error);
+          return encryptedValue;
         }
-        
-        return decryptedSubActivity;
-      });
+      };
+      projectInfo.currency = decryptField(projectInfo.currency);
     }
-
-    // Also include project basic info for context
-    const projectInfo = {
-      _id: project._id,
-      projectId: project.projectId,
-      title: project.title && typeof project.title === 'string' && project.title.includes(':') 
-        ? decrypt(project.title) 
-        : project.title,
-      currency: project.currency && typeof project.currency === 'string' && project.currency.includes(':') 
-        ? decrypt(project.currency) 
-        : project.currency
-    };
 
     res.status(200).json({
       success: true,
       data: {
-        activity: decryptedActivity,
-        project: projectInfo
+        activity: activityData,
+        project: projectInfo,
       },
     });
   } catch (error) {
@@ -498,35 +545,22 @@ const getActivityById = async (req, res) => {
 
 const getDashboardData = async (req, res) => {
   try {
-    const { decrypt } = require("../utils/encryption");
-
     // Fetch Statistics
-    const totalProjects = await Project.countDocuments();
-    const totalReallocations = await ReallocationRequest.countDocuments();
+    const totalProjects = await Project.count();
+    const totalReallocations = await ReallocationRequest.count();
 
-    // Get all projects to calculate underspent/overspent (need to decrypt amounts)
-    const allProjects = await Project.find()
-      .select("amountDonated totalExpense")
-      .lean();
+    // Get all projects to calculate underspent/overspent
+    const allProjects = await Project.findAll({
+      attributes: ["amountDonated", "totalExpense"],
+    });
 
     let underspentProjects = 0;
     let overspentProjects = 0;
 
     allProjects.forEach((project) => {
-      let amountDonated = project.amountDonated;
-      let totalExpense = project.totalExpense;
-
-      // Decrypt if encrypted
-      if (amountDonated && typeof amountDonated === "string" && amountDonated.includes(":")) {
-        amountDonated = parseFloat(decrypt(amountDonated)) || 0;
-      }
-      if (totalExpense && typeof totalExpense === "string" && totalExpense.includes(":")) {
-        totalExpense = parseFloat(decrypt(totalExpense)) || 0;
-      }
-
-      // Ensure they are numbers
-      amountDonated = typeof amountDonated === "number" ? amountDonated : parseFloat(amountDonated) || 0;
-      totalExpense = typeof totalExpense === "number" ? totalExpense : parseFloat(totalExpense) || 0;
+      // Fields are already decrypted by model hooks
+      const amountDonated = project.amountDonated || 0;
+      const totalExpense = project.totalExpense || 0;
 
       if (totalExpense < amountDonated) {
         underspentProjects++;
@@ -537,62 +571,56 @@ const getDashboardData = async (req, res) => {
 
     // Reallocation Status Distribution
     const reallocationStatuses = ["pending", "approved", "rejected"];
-    const reallocationStatusRaw = await ReallocationRequest.aggregate([
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const reallocationStatusDistribution = reallocationStatuses.reduce((acc, status) => {
-      acc[status] =
-        reallocationStatusRaw.find((item) => item._id === status)?.count || 0;
-      return acc;
-    }, {});
+    const reallocationStatusDistribution = {};
+    
+    for (const status of reallocationStatuses) {
+      const count = await ReallocationRequest.count({
+        where: { status },
+      });
+      reallocationStatusDistribution[status] = count;
+    }
 
     // Project Status Distribution
     const projectStatuses = ["Not Started", "In Progress", "Completed"];
-    const projectStatusRaw = await Project.aggregate([
-      {
-        $group: {
-          _id: "$projectStatus",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const projectStatusDistribution = projectStatuses.reduce((acc, status) => {
-      acc[status] =
-        projectStatusRaw.find((item) => item._id === status)?.count || 0;
-      return acc;
-    }, {});
+    const projectStatusDistribution = {};
+    
+    for (const status of projectStatuses) {
+      const count = await Project.count({
+        where: { projectStatus: status },
+      });
+      projectStatusDistribution[status] = count;
+    }
 
     // Fetch recent 5 projects
-    const recentProjects = await Project.find()
-      .select("projectId title projectStatus createdAt")
-      .populate("financePersonnel", "name email")
-      .populate("programPersonnel", "name email")
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
-
-    // Decrypt project fields
-    const decryptedRecentProjects = recentProjects.map((project) => {
-      const p = { ...project };
-      if (p.title && typeof p.title === "string" && p.title.includes(":")) {
-        p.title = decrypt(p.title);
-      }
-      return p;
+    const recentProjects = await Project.findAll({
+      attributes: ["id", "projectId", "title", "projectStatus", "createdAt"],
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 5,
     });
 
+    // Projects are already decrypted by model hooks
+    const recentProjectsData = recentProjects.map((project) => project.toJSON());
+
     // Fetch recent 5 users
-    const recentUsers = await User.find()
-      .select("name email role isApproved createdAt")
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
+    const recentUsers = await User.findAll({
+      attributes: ["id", "name", "email", "role", "isApproved", "createdAt"],
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+    });
+
+    const recentUsersData = recentUsers.map((user) => user.toJSON());
 
     res.status(200).json({
       success: true,
@@ -606,8 +634,8 @@ const getDashboardData = async (req, res) => {
         reallocationStatusDistribution,
         projectStatusDistribution,
       },
-      recentProjects: decryptedRecentProjects,
-      recentUsers,
+      recentProjects: recentProjectsData,
+      recentUsers: recentUsersData,
     });
   } catch (error) {
     console.error("Get dashboard data error:", error);
@@ -632,30 +660,32 @@ const getUserActivityHistory = async (req, res) => {
     }
 
     // Build query - only show finance and program manager activities
-    const query = {
-      userRole: { $in: ["finance", "program"] },
+    const where = {
+      userRole: { [Op.in]: ["finance", "program"] },
     };
 
     // Optional search by email or action
     if (search) {
-      query.$or = [
-        { userEmail: { $regex: search, $options: "i" } },
-        { action: { $regex: search, $options: "i" } },
+      where[Op.or] = [
+        { userEmail: { [Op.like]: `%${search}%` } },
+        { action: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const totalLogs = await ActivityLog.countDocuments(query);
+    const totalLogs = await ActivityLog.count({ where });
 
-    const logs = await ActivityLog.find(query)
-      .select("timestamp userEmail action")
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const logs = await ActivityLog.findAll({
+      attributes: ["id", "timestamp", "userEmail", "action"],
+      where,
+      order: [['timestamp', 'DESC']],
+      offset,
+      limit: parseInt(limit),
+    });
 
     const formattedLogs = logs.map((log) => ({
-      id: log._id,
+      id: log.id,
       dateTime: log.timestamp,
       email: log.userEmail,
       action: log.action,
@@ -684,26 +714,52 @@ const getAllReallocationRequestsForAdmin = async (req, res) => {
     const { status } = req.query;
 
     // Build query - empty query gets all requests (no user filter)
-    const query = {};
+    const where = {};
     
     // Optional status filter
     if (status && ["pending", "approved", "rejected"].includes(status)) {
-      query.status = status;
+      where.status = status;
     }
 
     // Fetch all requests with populated data
-    const requests = await ReallocationRequest.find(query)
-      .populate("requestedBy", "name email")
-      .populate("sourceProjectId", "projectId title")
-      .populate("destinationProjectId", "projectId title")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email")
-      .sort({ createdAt: -1 });
+    const requests = await ReallocationRequest.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "requestedBy",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Project,
+          as: "sourceProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "destinationProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "project",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: User,
+          as: "approvedBy",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const requestsData = requests.map((request) => request.toJSON());
 
     res.status(200).json({
       success: true,
-      count: requests.length,
-      data: requests,
+      count: requestsData.length,
+      data: requestsData,
     });
   } catch (error) {
     console.error("Admin get all reallocation requests error:", error);
@@ -719,21 +775,44 @@ const getReallocationRequestByIdForAdmin = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate ID
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate integer ID format
+    if (!Number.isInteger(parseInt(id))) {
       return res.status(400).json({
         success: false,
         message: "Invalid request ID format",
       });
     }
 
-    // Note: Using findById instead of findOne with requestedBy filter
-    const request = await ReallocationRequest.findById(id)
-      .populate("requestedBy", "name email")
-      .populate("sourceProjectId", "projectId title")
-      .populate("destinationProjectId", "projectId title")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email");
+    // Note: Using findByPk instead of findOne with requestedBy filter
+    const request = await ReallocationRequest.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: "requestedBy",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Project,
+          as: "sourceProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "destinationProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "project",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: User,
+          as: "approvedBy",
+          attributes: ["name", "email"],
+        },
+      ],
+    });
 
     if (!request) {
       return res.status(404).json({
@@ -742,9 +821,11 @@ const getReallocationRequestByIdForAdmin = async (req, res) => {
       });
     }
 
+    const requestData = request.toJSON();
+
     res.status(200).json({
       success: true,
-      data: request,
+      data: requestData,
     });
   } catch (error) {
     console.error("Admin get reallocation request by ID error:", error);

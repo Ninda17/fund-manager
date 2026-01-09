@@ -97,14 +97,14 @@ const FinanceRequestDetails = () => {
     if (!request) return 'N/A'
     
     if (request.requestType === 'project_to_project') {
-      const project = request.sourceProjectId
+      const project = request.sourceProject || request.sourceProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity ${request.sourceActivityId || ''}`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity ${request.sourceSubactivityId || ''}`
     }
@@ -115,14 +115,14 @@ const FinanceRequestDetails = () => {
     if (!request) return 'N/A'
     
     if (request.requestType === 'project_to_project') {
-      const project = request.destinationProjectId
+      const project = request.destinationProject || request.destinationProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity ${request.destinationActivityId || ''}`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity ${request.destinationSubactivityId || ''}`
     }
@@ -187,7 +187,7 @@ const FinanceRequestDetails = () => {
       }
 
       const response = await axiosInstance.put(
-        API_PATHS.FINANCE.APPROVE_REALLOCATION_REQUEST(request._id),
+        API_PATHS.FINANCE.APPROVE_REALLOCATION_REQUEST(request.id || request._id),
         formData,
         {
           headers: {
@@ -221,7 +221,7 @@ const FinanceRequestDetails = () => {
 
     try {
       const response = await axiosInstance.put(
-        API_PATHS.FINANCE.REJECT_REALLOCATION_REQUEST(request._id),
+        API_PATHS.FINANCE.REJECT_REALLOCATION_REQUEST(request.id || request._id),
         { rejectionReason: rejectionReason.trim() }
       )
 

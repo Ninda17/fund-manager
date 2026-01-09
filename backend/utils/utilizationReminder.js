@@ -1,5 +1,5 @@
 const { sendUtilizationWarningEmail, sendUtilizationExceededEmail } = require("./emailService");
-const User = require("../models/userModel");
+const { User } = require("../models");
 
 // Track notifications to avoid spam (in-memory cache)
 // In production, consider using Redis or database
@@ -60,7 +60,7 @@ const checkAndNotifyItem = async (itemType, itemName, itemId, budget, expense, c
     const utilization = calculateUtilization(expenseValue, budgetValue);
     
     // Get program personnel user
-    const programUser = await User.findById(programPersonnelId);
+    const programUser = await User.findByPk(programPersonnelId);
     if (!programUser || !programUser.email) {
       console.error(`Program user not found or has no email: ${programPersonnelId}`);
       return;
@@ -133,15 +133,19 @@ const checkProjectUtilization = async (project) => {
     
     const utilization = calculateUtilization(totalExpense, amountDonated);
     
-    // Get program personnel user
-    const programUser = await User.findById(project.programPersonnel);
+    // Get program personnel user - handle both Sequelize (programPersonnelId) and Mongoose (programPersonnel) formats
+    const programPersonnelId = project.programPersonnelId || project.programPersonnel;
+    const programUser = await User.findByPk(programPersonnelId);
     if (!programUser || !programUser.email) {
-      console.error(`Program user not found or has no email: ${project.programPersonnel}`);
+      console.error(`Program user not found or has no email: ${programPersonnelId}`);
       return;
     }
     
+    // Use project.id (Sequelize) or project._id (Mongoose) for cache key
+    const projectCacheId = (project.id || project._id).toString();
+    
     // Check for exceeded threshold (100%+)
-    if (utilization > 100 && !wasNotifiedRecently('Project', project._id.toString(), 'exceeded')) {
+    if (utilization > 100 && !wasNotifiedRecently('Project', projectCacheId, 'exceeded')) {
       try {
         await sendUtilizationExceededEmail(
           programUser.email,
@@ -154,13 +158,13 @@ const checkProjectUtilization = async (project) => {
           totalExpense,
           currency
         );
-        markAsNotified('Project', project._id.toString(), 'exceeded');
+        markAsNotified('Project', projectCacheId, 'exceeded');
       } catch (error) {
         console.error(`Error sending exceeded email for Project ${projectId}:`, error);
       }
     }
     // Check for warning threshold (90%+)
-    else if (utilization >= 90 && utilization <= 100 && !wasNotifiedRecently('Project', project._id.toString(), 'warning')) {
+    else if (utilization >= 90 && utilization <= 100 && !wasNotifiedRecently('Project', projectCacheId, 'warning')) {
       try {
         await sendUtilizationWarningEmail(
           programUser.email,
@@ -173,7 +177,7 @@ const checkProjectUtilization = async (project) => {
           totalExpense,
           currency
         );
-        markAsNotified('Project', project._id.toString(), 'warning');
+        markAsNotified('Project', projectCacheId, 'warning');
       } catch (error) {
         console.error(`Error sending warning email for Project ${projectId}:`, error);
       }
@@ -204,14 +208,17 @@ const checkActivityUtilization = async (activity, project) => {
       activityName = decrypt(activityName);
     }
     
+    // Handle both Sequelize (programPersonnelId) and Mongoose (programPersonnel) formats
+    const programPersonnelId = project.programPersonnelId || project.programPersonnel;
+    
     await checkAndNotifyItem(
       'Activity',
       activityName || `Activity ${activity.activityId}`,
-      activity.activityId || activity._id.toString(),
+      activity.activityId || (activity.id || activity._id).toString(),
       budget,
       expense,
       currency,
-      project.programPersonnel
+      programPersonnelId
     );
     
     // Check subactivities
@@ -230,11 +237,11 @@ const checkActivityUtilization = async (activity, project) => {
         await checkAndNotifyItem(
           'Subactivity',
           subActivityName || `Subactivity ${subActivity.subactivityId}`,
-          subActivity.subactivityId || subActivity._id.toString(),
+          subActivity.subactivityId || (subActivity.id || subActivity._id).toString(),
           subBudget,
           subExpense,
           currency,
-          project.programPersonnel
+          programPersonnelId
         );
       }
     }

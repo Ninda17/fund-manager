@@ -57,7 +57,8 @@ const EditProject = () => {
           setDescription(project.description || '')
           setStartDate(formatDateForInput(project.startDate))
           setEndDate(formatDateForInput(project.endDate))
-          setFinancePersonnel(project.financePersonnel?._id || project.financePersonnel || '')
+          // Use financePersonnelId (foreign key) or fallback to financePersonnel.id for compatibility
+          setFinancePersonnel(project.financePersonnelId?.toString() || project.financePersonnel?.id?.toString() || project.financePersonnel?._id?.toString() || '')
           setDonorName(project.donorName || '')
           setAmountDonated(project.amountDonated?.toString() || '')
           setCurrency(project.currency || 'USD')
@@ -401,7 +402,7 @@ const EditProject = () => {
                   >
                     <option value="">Select finance personnel</option>
                     {financeUsers.map(user => (
-                      <option key={user._id} value={user._id}>
+                      <option key={user.id || user._id} value={user.id || user._id}>
                         {user.name} ({user.email})
                       </option>
                     ))}

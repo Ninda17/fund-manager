@@ -1,33 +1,64 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const otpSchema = new mongoose.Schema(
+const OTP = sequelize.define(
+  "OTP",
   {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     email: {
-      type: String,
-      required: true,
-      lowercase: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        isEmail: {
+          msg: "Please provide a valid email",
+        },
+        notEmpty: {
+          msg: "Email is required",
+        },
+      },
     },
     otp: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: {
+          msg: "OTP is required",
+        },
+      },
     },
     expiresAt: {
-      type: Date,
-      required: true,
-      default: () => new Date(Date.now() + 10 * 60 * 1000), // 10 minutes from now
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: () => new Date(Date.now() + 10 * 60 * 1000), // 10 minutes from now
+      // Note: TTL index functionality will be handled by cleanup job (Step 7)
     },
     isUsed: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
   },
-  { timestamps: true }
+  {
+    tableName: "otps",
+    timestamps: true, // Sequelize automatically adds createdAt and updatedAt
+    indexes: [
+      {
+        fields: ["email"],
+      },
+      {
+        fields: ["expiresAt"],
+      },
+      {
+        fields: ["isUsed"],
+      },
+    ],
+  }
 );
 
-// Index for automatic cleanup of expired OTPs
-otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-const OTP = mongoose.model("OTP", otpSchema);
 module.exports = OTP;
+
 

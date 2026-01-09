@@ -29,9 +29,10 @@ const Reallocations = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(req => {
-        const sourceProject = req.sourceProjectId?.projectId || req.sourceProjectId?._id || ''
-        const destProject = req.destinationProjectId?.projectId || req.destinationProjectId?._id || ''
-        const project = req.projectId?.projectId || req.projectId?._id || ''
+        // Use populated objects (sourceProject, destinationProject, project) if available, fallback to IDs
+        const sourceProject = req.sourceProject?.projectId || req.sourceProject?.id?.toString() || req.sourceProjectId?.projectId || req.sourceProjectId?.id?.toString() || req.sourceProjectId?._id?.toString() || ''
+        const destProject = req.destinationProject?.projectId || req.destinationProject?.id?.toString() || req.destinationProjectId?.projectId || req.destinationProjectId?.id?.toString() || req.destinationProjectId?._id?.toString() || ''
+        const project = req.project?.projectId || req.project?.id?.toString() || req.projectId?.projectId || req.projectId?.id?.toString() || req.projectId?._id?.toString() || ''
         const amountStr = req.amount?.toString() || ''
         const reasonStr = (req.reason || '').toLowerCase()
         const statusStr = (req.status || '').toLowerCase()
@@ -92,14 +93,14 @@ const Reallocations = () => {
 
   const getSourceDisplay = (request) => {
     if (request.requestType === 'project_to_project') {
-      const project = request.sourceProjectId
+      const project = request.sourceProject || request.sourceProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity`
     }
@@ -108,14 +109,14 @@ const Reallocations = () => {
 
   const getDestinationDisplay = (request) => {
     if (request.requestType === 'project_to_project') {
-      const project = request.destinationProjectId
+      const project = request.destinationProject || request.destinationProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity`
     }
@@ -335,9 +336,9 @@ const Reallocations = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {requests.map((request) => (
                       <tr 
-                        key={request._id} 
+                        key={request.id || request._id} 
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/finance/reallocations/${request._id}`)}
+                        onClick={() => navigate(`/finance/reallocations/${request.id || request._id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900">{formatDate(request.createdAt)}</span>
@@ -385,9 +386,9 @@ const Reallocations = () => {
             <div className="lg:hidden space-y-4">
               {requests.map((request) => (
                 <div
-                  key={request._id}
+                  key={request.id || request._id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/finance/reallocations/${request._id}`)}
+                  onClick={() => navigate(`/finance/reallocations/${request.id || request._id}`)}
                 >
                   <div className="space-y-3">
                     {/* Status and Type */}

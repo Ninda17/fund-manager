@@ -9,7 +9,10 @@ const protect = async (req, res, next) => {
         if (token && token.startsWith("Bearer")) {
             token = token.split(" ")[1]; //extract token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            req.user = await User.findById(decoded.id).select("-password");
+            // Sequelize: findByPk instead of findById, attributes exclude instead of select
+            req.user = await User.findByPk(decoded.id, {
+                attributes: { exclude: ['password'] }
+            });
             if (!req.user) {
                 return res.status(401).json({message: "User not found"});
             }

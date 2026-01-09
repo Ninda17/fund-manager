@@ -84,9 +84,9 @@ const ReallocationRequests = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(req => {
-        const sourceProject = req.sourceProjectId?.projectId || req.sourceProjectId?._id || ''
-        const destProject = req.destinationProjectId?.projectId || req.destinationProjectId?._id || ''
-        const project = req.projectId?.projectId || req.projectId?._id || ''
+        const sourceProject = req.sourceProject?.projectId || req.sourceProjectId?.projectId || req.sourceProjectId?.id?.toString() || req.sourceProjectId?._id?.toString() || ''
+        const destProject = req.destinationProject?.projectId || req.destinationProjectId?.projectId || req.destinationProjectId?.id?.toString() || req.destinationProjectId?._id?.toString() || ''
+        const project = req.project?.projectId || req.projectId?.projectId || req.projectId?.id?.toString() || req.projectId?._id?.toString() || ''
         const amountStr = req.amount?.toString() || ''
         const reasonStr = (req.reason || '').toLowerCase()
         const statusStr = (req.status || '').toLowerCase()
@@ -209,12 +209,12 @@ const ReallocationRequests = () => {
       if (response.data.success) {
         setSelectedProject(response.data.data)
       } else {
-        const project = projects.find(p => p._id === projectIdValue)
+        const project = projects.find(p => (p.id || p._id)?.toString() === projectIdValue?.toString())
         setSelectedProject(project)
       }
     } catch (error) {
       console.error('Error fetching project details:', error)
-      const project = projects.find(p => p._id === projectIdValue)
+      const project = projects.find(p => (p.id || p._id)?.toString() === projectIdValue?.toString())
       setSelectedProject(project)
     }
   }
@@ -223,7 +223,7 @@ const ReallocationRequests = () => {
     setSourceActivityId(activityId)
     if (selectedProject) {
       const activity = selectedProject.activities?.find(
-        a => a._id?.toString() === activityId || a.activityId === activityId
+        a => (a.id || a._id)?.toString() === activityId?.toString() || a.activityId === activityId
       )
       setSelectedSourceActivity(activity)
     }
@@ -234,7 +234,7 @@ const ReallocationRequests = () => {
     setDestinationActivityId(activityId)
     if (selectedProject) {
       const activity = selectedProject.activities?.find(
-        a => a._id?.toString() === activityId || a.activityId === activityId
+        a => (a.id || a._id)?.toString() === activityId?.toString() || a.activityId === activityId
       )
       setSelectedDestinationActivity(activity)
     }
@@ -254,14 +254,14 @@ const ReallocationRequests = () => {
 
   const getSourceDisplay = (request) => {
     if (request.requestType === 'project_to_project') {
-      const project = request.sourceProjectId
+      const project = request.sourceProject || request.sourceProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity`
     }
@@ -270,14 +270,14 @@ const ReallocationRequests = () => {
 
   const getDestinationDisplay = (request) => {
     if (request.requestType === 'project_to_project') {
-      const project = request.destinationProjectId
+      const project = request.destinationProject || request.destinationProjectId
       return project?.projectId || project?.title || 'N/A'
     } else if (request.requestType === 'activity_to_activity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Activity`
     } else if (request.requestType === 'subactivity_to_subactivity') {
-      const project = request.projectId
+      const project = request.project || request.projectId
       const projectName = project?.projectId || project?.title || 'N/A'
       return `${projectName} - Subactivity`
     }
@@ -511,9 +511,9 @@ const ReallocationRequests = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {requests.map((request) => (
                       <tr 
-                        key={request._id} 
+                        key={request.id || request._id} 
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/program/reallocations/${request._id}`)}
+                        onClick={() => navigate(`/program/reallocations/${request.id || request._id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900">{formatDate(request.createdAt)}</span>
@@ -567,9 +567,9 @@ const ReallocationRequests = () => {
             <div className="lg:hidden space-y-4">
               {requests.map((request) => (
                 <div
-                  key={request._id}
+                  key={request.id || request._id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/program/reallocations/${request._id}`)}
+                  onClick={() => navigate(`/program/reallocations/${request.id || request._id}`)}
                 >
                   <div className="space-y-3">
                     {/* Status and Type */}
@@ -698,7 +698,7 @@ const ReallocationRequests = () => {
                           >
                             <option value="">Select source project</option>
                             {projects.map(project => (
-                              <option key={project._id} value={project._id}>
+                              <option key={project.id || project._id} value={project.id || project._id}>
                                 {project.projectId} - {project.title} ({formatCurrency(project.amountDonated, project.currency)})
                               </option>
                             ))}
@@ -719,7 +719,7 @@ const ReallocationRequests = () => {
                           >
                             <option value="">Select destination project</option>
                             {projects.map(project => (
-                              <option key={project._id} value={project._id}>
+                              <option key={project.id || project._id} value={project.id || project._id}>
                                 {project.projectId} - {project.title}
                               </option>
                             ))}
@@ -745,7 +745,7 @@ const ReallocationRequests = () => {
                           >
                             <option value="">Select project</option>
                             {projects.map(project => (
-                              <option key={project._id} value={project._id}>
+                              <option key={project.id || project._id} value={project.id || project._id}>
                                 {project.projectId} - {project.title}
                               </option>
                             ))}
@@ -768,7 +768,7 @@ const ReallocationRequests = () => {
                               >
                                 <option value="">Select source activity</option>
                                 {selectedProject.activities.map(activity => (
-                                  <option key={activity._id || activity.activityId} value={activity._id || activity.activityId}>
+                                  <option key={activity.id || activity._id || activity.activityId} value={activity.id || activity._id || activity.activityId}>
                                     {activity.name || activity.activityId} ({formatCurrency(activity.budget, selectedProject.currency)})
                                   </option>
                                 ))}
@@ -789,9 +789,9 @@ const ReallocationRequests = () => {
                               >
                                 <option value="">Select destination activity</option>
                                 {selectedProject.activities
-                                  .filter(a => (a._id || a.activityId) !== sourceActivityId)
+                                  .filter(a => (a.id || a._id || a.activityId)?.toString() !== sourceActivityId?.toString())
                                   .map(activity => (
-                                    <option key={activity._id || activity.activityId} value={activity._id || activity.activityId}>
+                                    <option key={activity.id || activity._id || activity.activityId} value={activity.id || activity._id || activity.activityId}>
                                       {activity.name || activity.activityId}
                                     </option>
                                   ))}
@@ -819,7 +819,7 @@ const ReallocationRequests = () => {
                           >
                             <option value="">Select project</option>
                             {projects.map(project => (
-                              <option key={project._id} value={project._id}>
+                              <option key={project.id || project._id} value={project.id || project._id}>
                                 {project.projectId} - {project.title}
                               </option>
                             ))}
@@ -843,7 +843,7 @@ const ReallocationRequests = () => {
                               >
                                 <option value="">Select activity</option>
                                 {selectedProject.activities.map(activity => (
-                                  <option key={activity._id || activity.activityId} value={activity._id || activity.activityId}>
+                                  <option key={activity.id || activity._id || activity.activityId} value={activity.id || activity._id || activity.activityId}>
                                     {activity.name || activity.activityId}
                                   </option>
                                 ))}
@@ -866,7 +866,7 @@ const ReallocationRequests = () => {
                                   >
                                     <option value="">Select source subactivity</option>
                                     {selectedSourceActivity.subActivities.map(sub => (
-                                      <option key={sub._id || sub.subactivityId} value={sub._id || sub.subactivityId}>
+                                      <option key={sub.id || sub._id || sub.subactivityId} value={sub.id || sub._id || sub.subactivityId}>
                                         {sub.name || sub.subactivityId} ({formatCurrency(sub.budget, selectedProject.currency)})
                                       </option>
                                     ))}
@@ -887,9 +887,9 @@ const ReallocationRequests = () => {
                                   >
                                     <option value="">Select destination subactivity</option>
                                     {selectedSourceActivity.subActivities
-                                      .filter(s => (s._id || s.subactivityId) !== sourceSubactivityId)
+                                      .filter(s => (s.id || s._id || s.subactivityId)?.toString() !== sourceSubactivityId?.toString())
                                       .map(sub => (
-                                        <option key={sub._id || sub.subactivityId} value={sub._id || sub.subactivityId}>
+                                        <option key={sub.id || sub._id || sub.subactivityId} value={sub.id || sub._id || sub.subactivityId}>
                                           {sub.name || sub.subactivityId}
                                         </option>
                                       ))}

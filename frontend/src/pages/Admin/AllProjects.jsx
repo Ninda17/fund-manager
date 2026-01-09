@@ -435,10 +435,10 @@ const MyProjects = () => {
                       const budgetStatus = getBudgetStatus(project);
                       return (
                         <tr
-                          key={project._id}
+                          key={project.id || project._id}
                           className="hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() =>
-                            navigate(`/admin/projects/${project._id}`)
+                            navigate(`/admin/projects/${project.id || project._id}`)
                           }
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -535,9 +535,9 @@ const MyProjects = () => {
                 const budgetStatus = getBudgetStatus(project);
                 return (
                   <div
-                    key={project._id}
+                    key={project.id || project._id}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => navigate(`/admin/projects/${project._id}`)}
+                    onClick={() => navigate(`/admin/projects/${project.id || project._id}`)}
                   >
                     <div className="space-y-3">
                       {/* Project ID and Title */}

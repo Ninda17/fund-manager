@@ -1,8 +1,67 @@
-const Project = require("../models/projectModel");
-const User = require("../models/userModel");
-const ReallocationRequest = require("../models/reallocationRequestModel");
-const mongoose = require("mongoose");
-const logActivity  = require("../utils/logActivity");
+const { Project, User, ReallocationRequest, Activity, SubActivity, ProjectDocument } = require("../models");
+const { Op } = require("sequelize");
+const logActivity = require("../utils/logActivity");
+const { decrypt } = require("../utils/encryption");
+
+// Helper function to decrypt nested activities and subactivities
+const decryptActivityData = (activity) => {
+  if (!activity) return activity;
+  
+  const decryptField = (encryptedValue, returnType = 'string') => {
+    if (!encryptedValue || typeof encryptedValue !== 'string') {
+      return encryptedValue;
+    }
+    
+    // Check if encrypted (contains ':')
+    if (!encryptedValue.includes(':')) {
+      return encryptedValue;
+    }
+    
+    try {
+      const decrypted = decrypt(encryptedValue);
+      
+      if (returnType === 'number') {
+        return parseFloat(decrypted) || 0;
+      }
+      
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      return encryptedValue; // Return as-is if decryption fails
+    }
+  };
+  
+  // Decrypt activity fields
+  if (activity.name) {
+    activity.name = decryptField(activity.name);
+  }
+  if (activity.description) {
+    activity.description = decryptField(activity.description);
+  }
+  if (activity.budget) {
+    activity.budget = decryptField(activity.budget, 'number');
+  }
+  if (activity.expense) {
+    activity.expense = decryptField(activity.expense, 'number');
+  }
+  
+  // Decrypt subactivities if present
+  if (activity.subActivities && Array.isArray(activity.subActivities)) {
+    activity.subActivities.forEach(subActivity => {
+      if (subActivity.name) {
+        subActivity.name = decryptField(subActivity.name);
+      }
+      if (subActivity.budget) {
+        subActivity.budget = decryptField(subActivity.budget, 'number');
+      }
+      if (subActivity.expense) {
+        subActivity.expense = decryptField(subActivity.expense, 'number');
+      }
+    });
+  }
+  
+  return activity;
+};
 
 const createProject = async (req, res) => {
   try {
@@ -32,7 +91,7 @@ const createProject = async (req, res) => {
 
     // Validate projectId format (if you have a specific format requirement)
     // Check if projectId already exists
-    const existingProject = await Project.findOne({ projectId });
+    const existingProject = await Project.findOne({ where: { projectId } });
     if (existingProject) {
       return res.status(400).json({
         success: false,
@@ -40,8 +99,9 @@ const createProject = async (req, res) => {
       });
     }
 
-    // Validate financePersonnel is a valid ObjectId
-    if (!financePersonnel.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate financePersonnel is a valid integer ID
+    const financePersonnelId = parseInt(financePersonnel);
+    if (isNaN(financePersonnelId) || financePersonnelId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid financePersonnel ID format",
@@ -49,7 +109,7 @@ const createProject = async (req, res) => {
     }
 
     // Verify financePersonnel exists and has role "finance"
-    const financeUser = await User.findById(financePersonnel);
+    const financeUser = await User.findByPk(financePersonnelId);
     if (!financeUser) {
       return res.status(404).json({
         success: false,
@@ -181,42 +241,161 @@ const createProject = async (req, res) => {
     }
 
     // Create project
-    // Note: amountDonated will be encrypted by pre-save hook
-    // programPersonnel is set from the authenticated user
+    // Note: amountDonated, startDate, and endDate will be encrypted by beforeCreate hook
+    // programPersonnelId is set from the authenticated user
+    // Convert Date objects to ISO strings for encryption (stored as TEXT)
     const project = await Project.create({
-      programPersonnel: req.user.id, // Set from authenticated user
+      programPersonnelId: req.user.id, // Set from authenticated user
       projectId,
       title,
       description: description || "",
-      startDate: start,
-      endDate: end,
-      financePersonnel,
+      startDate: start.toISOString(), // Convert Date to ISO string for encryption
+      endDate: end.toISOString(), // Convert Date to ISO string for encryption
+      financePersonnelId: financePersonnelId,
       donorName,
-      amountDonated: amount.toString(), // Will be encrypted by pre-save hook
+      amountDonated: amount.toString(), // Will be encrypted by beforeCreate hook
       currency: selectedCurrency,
       projectType: selectedProjectType,
-      activities: activities || [],
-      documents: documents || [],
     });
+
+    // Create activities and subactivities separately (not nested arrays)
+    if (activities && Array.isArray(activities)) {
+      for (const activityData of activities) {
+        // Filter out empty activities
+        if (!activityData.activityId && !activityData.name && (!activityData.budget || activityData.budget === 0)) {
+          continue;
+        }
+
+        // Only create activity if it has required fields (activityId and name)
+        if (!activityData.activityId || !activityData.name) {
+          continue; // Skip activities without required fields
+        }
+
+        const activity = await Activity.create({
+          projectId: project.id,
+          activityId: activityData.activityId.trim(),
+          name: activityData.name.trim(),
+          description: activityData.description ? activityData.description.trim() : null,
+          budget: activityData.budget ? activityData.budget.toString() : "0",
+          projectStatus: activityData.projectStatus || project.projectStatus || "Not Started",
+        });
+
+        // Create subactivities
+        if (activityData.subActivities && Array.isArray(activityData.subActivities)) {
+          for (const subActivityData of activityData.subActivities) {
+            // Filter out empty subactivities
+            if (!subActivityData.subactivityId && !subActivityData.name && (!subActivityData.budget || subActivityData.budget === 0)) {
+              continue;
+            }
+
+            // Only create subactivity if it has required fields
+            if (!subActivityData.subactivityId || !subActivityData.name) {
+              continue; // Skip subactivities without required fields
+            }
+
+            await SubActivity.create({
+              activityId: activity.id,
+              subactivityId: subActivityData.subactivityId.trim(),
+              name: subActivityData.name.trim(),
+              budget: subActivityData.budget ? subActivityData.budget.toString() : "0",
+              expense: subActivityData.expense ? subActivityData.expense.toString() : "0",
+            });
+          }
+        }
+      }
+    }
+
+    // Create project documents separately
+    if (documents && Array.isArray(documents)) {
+      for (const documentUrl of documents) {
+        if (documentUrl && documentUrl.trim()) {
+          await ProjectDocument.create({
+            projectId: project.id,
+            documentUrl: documentUrl.trim(),
+          });
+        }
+      }
+    }
 
     await logActivity({
       user: req.user,
       action: "PROJECT_CREATED",
       entityType: "project",
-      entityId: project._id,
+      entityId: project.id,
     });
 
-    // Project will be automatically decrypted by post-save hook
+    // Fetch project with all relationships for response
+    const projectWithRelations = await Project.findByPk(project.id, {
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+        {
+          model: ProjectDocument,
+          as: "documents",
+        },
+      ],
+    });
+
+    // Project fields are already decrypted by model hooks
+    const projectData = projectWithRelations.toJSON();
+    
+    // Manually decrypt nested activities and subactivities (hooks may not run for nested includes)
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      projectData.activities.forEach(activity => {
+        decryptActivityData(activity);
+      });
+    }
+    
+    // Transform documents array: Sequelize returns objects, but frontend expects array of URL strings
+    if (projectData.documents && Array.isArray(projectData.documents)) {
+      projectData.documents = projectData.documents.map(doc => {
+        if (doc && typeof doc === 'object' && doc.documentUrl) {
+          return doc.documentUrl;
+        }
+        if (typeof doc === 'string') {
+          return doc;
+        }
+        return doc?.documentUrl || doc;
+      }).filter(url => url);
+    } else if (!projectData.documents) {
+      projectData.documents = [];
+    }
+
     res.status(201).json({
       success: true,
       message: "Project created successfully",
-      data: project,
+      data: projectData,
     });
   } catch (error) {
+    console.error("Create project error:", error);
+    console.error("Error details:", {
+      name: error.name,
+      message: error.message,
+      errors: error.errors,
+      stack: error.stack,
+    });
 
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors ? error.errors.map((err) => err.message) : [error.message];
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -225,17 +404,29 @@ const createProject = async (req, res) => {
     }
 
     // Handle duplicate key error (projectId)
-    if (error.code === 11000) {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
         message: "Project with this projectId already exists",
       });
     }
 
+    // Handle database errors
+    if (error.name === "SequelizeDatabaseError") {
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Database error occurred",
+      });
+    }
+
     // Handle custom validation errors from pre-save hooks
-    if (error.message.includes("Financial personnel") || 
+    if (error.message && (
+        error.message.includes("Financial personnel") || 
         error.message.includes("Program personnel") ||
-        error.message.includes("End date")) {
+        error.message.includes("End date") ||
+        error.message.includes("budget") ||
+        error.message.includes("expense")
+      )) {
       return res.status(400).json({
         success: false,
         message: error.message,
@@ -246,22 +437,23 @@ const createProject = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
 
 const getFinancePersonnel = async (req, res) => {
   try {
-    const User = require("../models/userModel");
-    
     // Get all finance users who are verified and approved
-    const financeUsers = await User.find({
-      role: "finance",
-      isEmailVerified: true,
-      isApproved: "approved"
-    })
-    .select("-password")
-    .sort({ name: 1 });
+    const financeUsers = await User.findAll({
+      where: {
+        role: "finance",
+        isEmailVerified: true,
+        isApproved: "approved"
+      },
+      attributes: { exclude: ['password'] },
+      order: [['name', 'ASC']],
+    });
 
     res.status(200).json({
       success: true,
@@ -278,53 +470,29 @@ const getFinancePersonnel = async (req, res) => {
 
 const getAllProjects = async (req, res) => {
   try {
-    // Get all projects created by the logged-in user (programPersonnel)
-    // Use lean() to get plain objects, then decrypt manually
-    const projects = await Project.find({
-      programPersonnel: req.user.id
-    })
-    .select("projectId title startDate endDate financePersonnel amountDonated currency totalExpense projectStatus")
-    .populate("financePersonnel", "name email")
-    .lean()
-    .sort({ createdAt: -1 });
-
-    // Decrypt the encrypted fields manually
-    const { decrypt } = require("../utils/encryption");
-    const decryptedProjects = projects.map(project => {
-      const decrypted = { ...project };
-      
-      // Decrypt amountDonated
-      if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
-        decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
-      }
-      
-      // Decrypt startDate
-      if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
-        decrypted.startDate = new Date(decrypt(decrypted.startDate));
-      }
-      
-      // Decrypt endDate
-      if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
-        decrypted.endDate = new Date(decrypt(decrypted.endDate));
-      }
-      
-      // Decrypt currency
-      if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
-        decrypted.currency = decrypt(decrypted.currency);
-      }
-      
-      // Decrypt totalExpense
-      if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
-        decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
-      }
-      
-      return decrypted;
+    // Get all projects created by the logged-in user (programPersonnelId)
+    const projects = await Project.findAll({
+      where: {
+        programPersonnelId: req.user.id
+      },
+      attributes: ["id", "projectId", "title", "startDate", "endDate", "financePersonnelId", "amountDonated", "currency", "totalExpense", "projectStatus", "createdAt"],
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
     });
+
+    // Projects are already decrypted by model hooks
+    const projectsData = projects.map((project) => project.toJSON());
 
     res.status(200).json({
       success: true,
-      count: decryptedProjects.length,
-      data: decryptedProjects,
+      count: projectsData.length,
+      data: projectsData,
     });
   } catch (error) {
     res.status(500).json({
@@ -338,8 +506,9 @@ const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate id format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate id format - integer ID
+    const projectIdInt = parseInt(id);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
@@ -347,14 +516,41 @@ const getProjectById = async (req, res) => {
     }
 
     // Get project by ID, ensuring it belongs to the logged-in user
-    // Use lean() to get plain objects, then decrypt manually
     const project = await Project.findOne({
-      _id: id,
-      programPersonnel: req.user.id
-    })
-    .populate("financePersonnel", "name email")
-    .populate("programPersonnel", "name email")
-    .lean();
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
+      attributes: {
+        include: ["financePersonnelId", "programPersonnelId"], // Explicitly include foreign keys
+      },
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["id", "name", "email"], // Include id for frontend compatibility
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["id", "name", "email"], // Include id for frontend compatibility
+        },
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+        {
+          model: ProjectDocument,
+          as: "documents",
+        },
+      ],
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -363,111 +559,50 @@ const getProjectById = async (req, res) => {
       });
     }
 
-    // Decrypt all encrypted fields manually
-    const { decrypt } = require("../utils/encryption");
-    const decrypted = { ...project };
+    // Project fields are already decrypted by model hooks
+    const projectData = project.toJSON();
     
-    // Decrypt donorName
-    if (decrypted.donorName && typeof decrypted.donorName === 'string' && decrypted.donorName.includes(':')) {
-      decrypted.donorName = decrypt(decrypted.donorName);
-    }
-    
-    // Decrypt description
-    if (decrypted.description && typeof decrypted.description === 'string' && decrypted.description !== '' && decrypted.description.includes(':')) {
-      decrypted.description = decrypt(decrypted.description);
-    }
-    
-    // Decrypt amountDonated
-    if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
-      decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
-    }
-    
-    // Decrypt startDate
-    if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
-      decrypted.startDate = new Date(decrypt(decrypted.startDate));
-    }
-    
-    // Decrypt endDate
-    if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
-      decrypted.endDate = new Date(decrypt(decrypted.endDate));
-    }
-    
-    // Decrypt currency
-    if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
-      decrypted.currency = decrypt(decrypted.currency);
-    }
-    
-    // Decrypt projectType
-    if (decrypted.projectType && typeof decrypted.projectType === 'string' && decrypted.projectType.includes(':')) {
-      decrypted.projectType = decrypt(decrypted.projectType);
-    }
-    
-    // Decrypt totalExpense
-    if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
-      decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
-    }
-    
-    // Decrypt activities
-    if (decrypted.activities && Array.isArray(decrypted.activities)) {
-      decrypted.activities = decrypted.activities.map(activity => {
-        const decryptedActivity = { ...activity };
-        
-        // Decrypt activity name
-        if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
-          decryptedActivity.name = decrypt(decryptedActivity.name);
-        }
-        
-        // Decrypt activity description
-        if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
-          decryptedActivity.description = decrypt(decryptedActivity.description);
-        }
-        
-        // Decrypt activity budget
-        if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
-          decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
-        }
-        
-        // Decrypt activity expense
-        if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
-          decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
-        }
-        
-        // Decrypt subActivities
-        if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
-          decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
-            const decryptedSubActivity = { ...subActivity };
-            
-            // Decrypt sub activity name
-            if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
-              decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
-            }
-            
-            // Decrypt sub activity budget
-            if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
-              decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
-            }
-            
-            // Decrypt sub activity expense
-            if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
-              decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
-            }
-            
-            return decryptedSubActivity;
-          });
-        }
-        
-        return decryptedActivity;
+    // Manually decrypt nested activities and subactivities (hooks may not run for nested includes)
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      projectData.activities.forEach(activity => {
+        decryptActivityData(activity);
       });
+    }
+    
+    // Transform documents array: Sequelize returns objects, but frontend expects array of URL strings
+    if (projectData.documents && Array.isArray(projectData.documents)) {
+      projectData.documents = projectData.documents.map(doc => {
+        // If doc is an object with documentUrl property, extract it
+        if (doc && typeof doc === 'object' && doc.documentUrl) {
+          return doc.documentUrl;
+        }
+        // If doc is already a string, return as-is
+        if (typeof doc === 'string') {
+          return doc;
+        }
+        // Fallback: try to get documentUrl if it exists
+        return doc?.documentUrl || doc;
+      }).filter(url => url); // Remove any null/undefined values
+    } else if (!projectData.documents) {
+      // Ensure documents is always an array
+      projectData.documents = [];
     }
 
     res.status(200).json({
       success: true,
-      data: decrypted,
+      data: projectData,
     });
   } catch (error) {
+    console.error("Get project by ID error:", error);
+    console.error("Error details:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -477,23 +612,22 @@ const getActivityById = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
 
-    // Validate projectId format
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate projectId format - integer ID
+    const projectIdInt = parseInt(projectId);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
       });
     }
 
-    // activityId can be MongoDB ObjectId or activityId string, so no strict validation needed
-
-    // Get project by ID, ensuring it belongs to the logged-in user
-    // Use lean() to get plain objects, then decrypt manually
+    // Verify project belongs to the logged-in user
     const project = await Project.findOne({
-      _id: projectId,
-      programPersonnel: req.user.id
-    })
-    .lean();
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -502,13 +636,40 @@ const getActivityById = async (req, res) => {
       });
     }
 
-    // Find the activity within the project's activities array
-    // activityId could be MongoDB _id or activityId field
+    // Find activity - can be by ID (integer) or activityId (string)
     let activity = null;
-    if (project.activities && Array.isArray(project.activities)) {
-      activity = project.activities.find(
-        (act) => act._id?.toString() === activityId || act.activityId === activityId
-      );
+    
+    // Strategy 1: Search by integer ID
+    const activityIdInt = parseInt(activityId);
+    if (!isNaN(activityIdInt) && activityIdInt > 0) {
+      activity = await Activity.findOne({
+        where: {
+          id: activityIdInt,
+          projectId: projectIdInt,
+        },
+        include: [
+          {
+            model: SubActivity,
+            as: "subActivities",
+          },
+        ],
+      });
+    }
+    
+    // Strategy 2: Search by activityId field (string like "102")
+    if (!activity) {
+      activity = await Activity.findOne({
+        where: {
+          activityId: activityId,
+          projectId: projectIdInt,
+        },
+        include: [
+          {
+            model: SubActivity,
+            as: "subActivities",
+          },
+        ],
+      });
     }
 
     if (!activity) {
@@ -518,68 +679,24 @@ const getActivityById = async (req, res) => {
       });
     }
 
-    // Decrypt all encrypted fields manually
-    const { decrypt } = require("../utils/encryption");
-    const decryptedActivity = { ...activity };
+    // Activity fields are already decrypted by model hooks
+    const activityData = activity.toJSON();
     
-    // Decrypt activity name
-    if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
-      decryptedActivity.name = decrypt(decryptedActivity.name);
-    }
+    // Manually decrypt nested subactivities (hooks may not run for nested includes)
+    decryptActivityData(activityData);
     
-    // Decrypt activity description
-    if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
-      decryptedActivity.description = decrypt(decryptedActivity.description);
-    }
-    
-    // Decrypt activity budget
-    if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
-      decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
-    }
-    
-    // Decrypt activity expense
-    if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
-      decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
-    }
-    
-    // Decrypt subActivities
-    if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
-      decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
-        const decryptedSubActivity = { ...subActivity };
-        
-        // Decrypt sub activity name
-        if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
-          decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
-        }
-        
-        // Decrypt sub activity budget
-        if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
-          decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
-        }
-        
-        // Decrypt sub activity expense
-        if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
-          decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
-        }
-        
-        return decryptedSubActivity;
-      });
-    }
-
-    // Also include project basic info for context
+    // Get project basic info for context
     const projectInfo = {
-      _id: project._id,
+      id: project.id,
       projectId: project.projectId,
       title: project.title,
-      currency: project.currency && typeof project.currency === 'string' && project.currency.includes(':') 
-        ? decrypt(project.currency) 
-        : project.currency
+      currency: project.currency, // Already decrypted by hooks
     };
 
     res.status(200).json({
       success: true,
       data: {
-        activity: decryptedActivity,
+        activity: activityData,
         project: projectInfo
       },
     });
@@ -610,8 +727,9 @@ const updateProject = async (req, res) => {
       activities,
     } = req.body;
 
-    // Validate id format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate id format - integer ID
+    const projectIdInt = parseInt(id);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
@@ -619,11 +737,12 @@ const updateProject = async (req, res) => {
     }
 
     // Find project by ID, ensuring it belongs to the logged-in user
-    // Use lean() to get plain object and avoid Mongoose document validation issues
     const existingProject = await Project.findOne({
-      _id: id,
-      programPersonnel: req.user.id
-    }).lean();
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
+    });
 
     if (!existingProject) {
       return res.status(404).json({
@@ -635,8 +754,10 @@ const updateProject = async (req, res) => {
     // If projectId is being updated, check for duplicates (excluding current project)
     if (projectId && projectId !== existingProject.projectId) {
       const duplicateProject = await Project.findOne({ 
-        projectId,
-        _id: { $ne: id } // Exclude current project
+        where: {
+          projectId,
+          id: { [Op.ne]: projectIdInt } // Exclude current project
+        }
       });
       if (duplicateProject) {
         return res.status(400).json({
@@ -679,7 +800,7 @@ const updateProject = async (req, res) => {
           message: "Invalid startDate format",
         });
       }
-      updateObj.startDate = start;
+      updateObj.startDate = start.toISOString(); // Convert Date to ISO string for encryption
     }
 
     if (endDate !== undefined) {
@@ -690,25 +811,39 @@ const updateProject = async (req, res) => {
           message: "Invalid endDate format",
         });
       }
-      updateObj.endDate = end;
+      updateObj.endDate = end.toISOString(); // Convert Date to ISO string for encryption
     }
 
     // Validate date range if both dates are provided
-    const finalStartDate = updateObj.startDate || existingProject.startDate;
-    const finalEndDate = updateObj.endDate || existingProject.endDate;
+    // Get dates for validation (need to handle both new dates and existing encrypted dates)
+    let finalStartDate, finalEndDate;
+    if (updateObj.startDate) {
+      finalStartDate = new Date(updateObj.startDate);
+    } else {
+      // Existing date is already decrypted by hooks, so it's a Date object
+      finalStartDate = existingProject.startDate instanceof Date 
+        ? existingProject.startDate 
+        : new Date(existingProject.startDate);
+    }
+    
+    if (updateObj.endDate) {
+      finalEndDate = new Date(updateObj.endDate);
+    } else {
+      // Existing date is already decrypted by hooks, so it's a Date object
+      finalEndDate = existingProject.endDate instanceof Date 
+        ? existingProject.endDate 
+        : new Date(existingProject.endDate);
+    }
+    
     if (finalStartDate && finalEndDate) {
-      // Handle encrypted dates from existingProject
-      let start = finalStartDate instanceof Date ? finalStartDate : new Date(finalStartDate);
-      let end = finalEndDate instanceof Date ? finalEndDate : new Date(finalEndDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      if (isNaN(finalStartDate.getTime()) || isNaN(finalEndDate.getTime())) {
         return res.status(400).json({
           success: false,
           message: "Invalid date format",
         });
       }
       
-      if (end < start) {
+      if (finalEndDate < finalStartDate) {
         return res.status(400).json({
           success: false,
           message: "End date must be after start date",
@@ -718,7 +853,8 @@ const updateProject = async (req, res) => {
 
     // Update financePersonnel if provided
     if (financePersonnel !== undefined) {
-      if (!financePersonnel.match(/^[0-9a-fA-F]{24}$/)) {
+      const financePersonnelIdInt = parseInt(financePersonnel);
+      if (isNaN(financePersonnelIdInt) || financePersonnelIdInt <= 0) {
         return res.status(400).json({
           success: false,
           message: "Invalid financePersonnel ID format",
@@ -726,7 +862,7 @@ const updateProject = async (req, res) => {
       }
 
       // Verify financePersonnel exists and has role "finance"
-      const financeUser = await User.findById(financePersonnel);
+      const financeUser = await User.findByPk(financePersonnelIdInt);
       if (!financeUser) {
         return res.status(404).json({
           success: false,
@@ -741,7 +877,7 @@ const updateProject = async (req, res) => {
         });
       }
 
-      updateObj.financePersonnel = financePersonnel;
+      updateObj.financePersonnelId = financePersonnelIdInt;
     }
 
     // Update donorName if provided
@@ -803,7 +939,10 @@ const updateProject = async (req, res) => {
       updateObj.projectStatus = projectStatus;
     }
 
-    // Update activities if provided
+    // Update project fields
+    await existingProject.update(updateObj);
+
+    // Update activities if provided (delete existing and create new)
     if (activities !== undefined) {
       if (!Array.isArray(activities)) {
         return res.status(400).json({
@@ -863,49 +1002,98 @@ const updateProject = async (req, res) => {
         }
       }
 
-      updateObj.activities = activities;
-    }
-
-    // Use findByIdAndUpdate with runValidators: false to avoid casting errors on encrypted fields
-    await Project.findByIdAndUpdate(
-      id,
-      { $set: updateObj },
-      { runValidators: false, new: false }
-    );
-
-    // Fetch the document again and save to trigger pre-save hooks (encryption and expense calculation)
-    const updatedProject = await Project.findById(id);
-    if (!updatedProject) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found after update",
+      // Delete existing activities (CASCADE will delete subactivities)
+      await Activity.destroy({
+        where: { projectId: projectIdInt }
       });
+
+      // Create new activities and subactivities
+      for (const activityData of activities) {
+        // Filter out empty activities
+        if (!activityData.activityId && !activityData.name && (!activityData.budget || activityData.budget === 0)) {
+          continue;
+        }
+
+        const activity = await Activity.create({
+          projectId: projectIdInt,
+          activityId: activityData.activityId,
+          name: activityData.name || "",
+          description: activityData.description || "",
+          budget: activityData.budget ? activityData.budget.toString() : "0",
+          projectStatus: activityData.projectStatus || existingProject.projectStatus,
+        });
+
+        // Create subactivities
+        if (activityData.subActivities && Array.isArray(activityData.subActivities)) {
+          for (const subActivityData of activityData.subActivities) {
+            // Filter out empty subactivities
+            if (!subActivityData.subactivityId && !subActivityData.name && (!subActivityData.budget || subActivityData.budget === 0)) {
+              continue;
+            }
+
+            await SubActivity.create({
+              activityId: activity.id,
+              subactivityId: subActivityData.subactivityId,
+              name: subActivityData.name || "",
+              budget: subActivityData.budget ? subActivityData.budget.toString() : "0",
+              expense: subActivityData.expense ? subActivityData.expense.toString() : "0",
+            });
+          }
+        }
+      }
     }
 
-    // Mark activities as modified if they were updated
-    if (activities !== undefined) {
-      updatedProject.markModified('activities');
-    }
-
-    // Reset totalExpense to undefined so it gets recalculated by pre-save hook
-    // This avoids validation errors on the encrypted value
-    updatedProject.totalExpense = undefined;
-    updatedProject.markModified('totalExpense');
-
-    // Save to trigger pre-save hooks (expense calculation and encryption)
-    await updatedProject.save();
-    
-    // Use the saved project for response
-    const savedProject = updatedProject;
+    // Fetch the updated project with all relationships
+    const savedProject = await Project.findByPk(projectIdInt, {
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: User,
+          as: "programPersonnel",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+        {
+          model: ProjectDocument,
+          as: "documents",
+        },
+      ],
+    });
 
     // Check utilization and send notifications (non-blocking)
     try {
       const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
-      // Get project as plain object for utilization check
-      const projectForCheck = await Project.findById(id).lean();
+      // Get project with activities for utilization check
+      const projectForCheck = await Project.findByPk(projectIdInt, {
+        include: [
+          {
+            model: Activity,
+            as: "activities",
+            include: [
+              {
+                model: SubActivity,
+                as: "subActivities",
+              },
+            ],
+          },
+        ],
+      });
       if (projectForCheck) {
         // Run in background - don't wait for it
-        checkProjectItemsUtilization(projectForCheck).catch(err => {
+        checkProjectItemsUtilization(projectForCheck.toJSON()).catch(err => {
           console.error("Error checking utilization:", err);
         });
       }
@@ -918,21 +1106,45 @@ const updateProject = async (req, res) => {
       user: req.user,
       action: "PROJECT_UPDATED",
       entityType: "project",
-      entityId: id,
+      entityId: projectIdInt,
     });
 
-    // Project will be automatically decrypted by post-save hook
+    // Project fields are already decrypted by model hooks
+    const savedProjectData = savedProject.toJSON();
+    
+    // Manually decrypt nested activities and subactivities (hooks may not run for nested includes)
+    if (savedProjectData.activities && Array.isArray(savedProjectData.activities)) {
+      savedProjectData.activities.forEach(activity => {
+        decryptActivityData(activity);
+      });
+    }
+    
+    // Transform documents array: Sequelize returns objects, but frontend expects array of URL strings
+    if (savedProjectData.documents && Array.isArray(savedProjectData.documents)) {
+      savedProjectData.documents = savedProjectData.documents.map(doc => {
+        if (doc && typeof doc === 'object' && doc.documentUrl) {
+          return doc.documentUrl;
+        }
+        if (typeof doc === 'string') {
+          return doc;
+        }
+        return doc?.documentUrl || doc;
+      }).filter(url => url);
+    } else if (!savedProjectData.documents) {
+      savedProjectData.documents = [];
+    }
+
     res.status(200).json({
       success: true,
       message: "Project updated successfully",
-      data: savedProject,
+      data: savedProjectData,
     });
   } catch (error) {
     console.error("Update project error:", error);
 
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -941,7 +1153,7 @@ const updateProject = async (req, res) => {
     }
 
     // Handle duplicate key error (projectId)
-    if (error.code === 11000) {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
         message: "Project with this projectId already exists",
@@ -970,8 +1182,9 @@ const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate id format
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate id format - integer ID
+    const projectIdInt = parseInt(id);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
@@ -980,8 +1193,10 @@ const deleteProject = async (req, res) => {
 
     // Find project by ID, ensuring it belongs to the logged-in user
     const project = await Project.findOne({
-      _id: id,
-      programPersonnel: req.user.id
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
     });
 
     if (!project) {
@@ -991,14 +1206,14 @@ const deleteProject = async (req, res) => {
       });
     }
 
-    // Delete the project
-    await Project.findByIdAndDelete(id);
+    // Delete the project (CASCADE will delete activities, subactivities, and documents)
+    await project.destroy();
 
     await logActivity({
       user: req.user,
       action: "PROJECT_DELETED",
       entityType: "project",
-      entityId: id,
+      entityId: projectIdInt,
     });
 
     res.status(200).json({
@@ -1019,27 +1234,22 @@ const deleteActivity = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
 
-    // Validate projectId format
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate projectId format - integer ID
+    const projectIdInt = parseInt(projectId);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
       });
     }
 
-    // Validate activityId format (MongoDB ObjectId)
-    if (!activityId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid activity ID format",
-      });
-    }
-
     // First, verify the project exists and belongs to the logged-in user
     const project = await Project.findOne({
-      _id: projectId,
-      programPersonnel: req.user.id
-    }).lean();
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -1048,98 +1258,64 @@ const deleteActivity = async (req, res) => {
       });
     }
 
-    // Check if activities array exists and has items
-    if (!project.activities || !Array.isArray(project.activities) || project.activities.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No activities found in this project",
+    // Find activity - can be by ID (integer) or activityId (string)
+    let activity = null;
+    const activityIdInt = parseInt(activityId);
+    if (!isNaN(activityIdInt) && activityIdInt > 0) {
+      activity = await Activity.findOne({
+        where: {
+          id: activityIdInt,
+          projectId: projectIdInt,
+        },
+      });
+    }
+    
+    if (!activity) {
+      activity = await Activity.findOne({
+        where: {
+          activityId: activityId,
+          projectId: projectIdInt,
+        },
       });
     }
 
-    // Verify the activity exists
-    const activityExists = project.activities.some(
-      (act) => act._id && act._id.toString() === activityId
-    );
-
-    if (!activityExists) {
+    if (!activity) {
       return res.status(404).json({
         success: false,
         message: "Activity not found",
       });
     }
 
-    // Use findByIdAndUpdate with $pull to remove the activity
-    // Use runValidators: false to avoid validation errors on encrypted fields
-    const result = await Project.findByIdAndUpdate(
-      projectId,
-      {
-        $pull: { activities: { _id: activityId } }
-      },
-      { runValidators: false, new: false }
-    );
+    // Delete the activity (CASCADE will delete subactivities)
+    await activity.destroy();
 
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found after update",
-      });
+    // Recalculate project totalExpense from remaining activities
+    // This is handled by the project model hooks, but we need to trigger a save
+    const updatedProject = await Project.findByPk(projectIdInt, {
+      include: [
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+      ],
+    });
+
+    if (updatedProject) {
+      // Trigger recalculation by saving (hooks will recalculate totalExpense)
+      await updatedProject.save();
     }
-
-    // Fetch the remaining activities to recalculate totalExpense
-    // Use lean() to avoid Mongoose casting issues with encrypted fields
-    const updatedProject = await Project.findById(projectId).lean();
-
-    if (!updatedProject) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found after deletion",
-      });
-    }
-
-    // Recalculate totalExpense from remaining activities
-    // Need to decrypt expenses to calculate, then encrypt the result
-    const { decrypt, encrypt } = require("../utils/encryption");
-    let totalExpense = 0;
-
-    if (updatedProject.activities && Array.isArray(updatedProject.activities)) {
-      updatedProject.activities.forEach(activity => {
-        // Calculate activity expense from sub-activities (same logic as pre-save hook)
-        let activityExpense = 0;
-        if (activity.subActivities && Array.isArray(activity.subActivities)) {
-          activity.subActivities.forEach(subActivity => {
-            if (subActivity.expense !== undefined && subActivity.expense !== null) {
-              let subExpense = 0;
-              if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
-                subExpense = parseFloat(decrypt(subActivity.expense)) || 0;
-              } else if (typeof subActivity.expense === 'number') {
-                subExpense = subActivity.expense;
-              }
-              activityExpense += subExpense;
-            }
-          });
-        }
-        totalExpense += activityExpense;
-      });
-    }
-
-    // Update totalExpense directly using MongoDB native collection method
-    // This bypasses Mongoose casting which would fail on encrypted string values
-    // Encrypt the totalExpense value
-    const encryptedTotalExpense = encrypt(totalExpense.toString());
-    
-    // Use MongoDB native collection to bypass Mongoose schema casting
-    const mongoose = require("mongoose");
-    await Project.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(projectId) },
-      { $set: { totalExpense: encryptedTotalExpense } }
-    );
 
     // Check utilization and send notifications (non-blocking)
     try {
       const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
-      const projectForCheck = await Project.findById(projectId).lean();
-      if (projectForCheck) {
-        checkProjectItemsUtilization(projectForCheck).catch(err => {
+      if (updatedProject) {
+        checkProjectItemsUtilization(updatedProject.toJSON()).catch(err => {
           console.error("Error checking utilization:", err);
         });
       }
@@ -1152,8 +1328,8 @@ const deleteActivity = async (req, res) => {
       user: req.user,
       action: "ACTIVITY_DELETED",
       entityType: "activity",
-      entityId: activityId,
-      metadata: { projectId },
+      entityId: activity.id || activityId,
+      metadata: { projectId: projectIdInt },
     });
 
     res.status(200).json({
@@ -1163,9 +1339,9 @@ const deleteActivity = async (req, res) => {
   } catch (error) {
     console.error("Delete activity error:", error);
     
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -1185,35 +1361,22 @@ const deleteSubActivity = async (req, res) => {
   try {
     const { projectId, activityId, subactivityId } = req.params;
 
-    // Validate projectId format
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate projectId format - integer ID
+    const projectIdInt = parseInt(projectId);
+    if (isNaN(projectIdInt) || projectIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid project ID format",
       });
     }
 
-    // Validate activityId format (MongoDB ObjectId)
-    if (!activityId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid activity ID format",
-      });
-    }
-
-    // Validate subactivityId format (MongoDB ObjectId)
-    if (!subactivityId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid subactivity ID format",
-      });
-    }
-
     // First, verify the project exists and belongs to the logged-in user
     const project = await Project.findOne({
-      _id: projectId,
-      programPersonnel: req.user.id
-    }).lean();
+      where: {
+        id: projectIdInt,
+        programPersonnelId: req.user.id
+      },
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -1222,18 +1385,26 @@ const deleteSubActivity = async (req, res) => {
       });
     }
 
-    // Check if activities array exists and has items
-    if (!project.activities || !Array.isArray(project.activities) || project.activities.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No activities found in this project",
+    // Find activity - can be by ID (integer) or activityId (string)
+    let activity = null;
+    const activityIdInt = parseInt(activityId);
+    if (!isNaN(activityIdInt) && activityIdInt > 0) {
+      activity = await Activity.findOne({
+        where: {
+          id: activityIdInt,
+          projectId: projectIdInt,
+        },
       });
     }
-
-    // Find the activity
-    const activity = project.activities.find(
-      (act) => act._id && act._id.toString() === activityId
-    );
+    
+    if (!activity) {
+      activity = await Activity.findOne({
+        where: {
+          activityId: activityId,
+          projectId: projectIdInt,
+        },
+      });
+    }
 
     if (!activity) {
       return res.status(404).json({
@@ -1242,111 +1413,79 @@ const deleteSubActivity = async (req, res) => {
       });
     }
 
-    // Check if subActivities array exists and has items
-    if (!activity.subActivities || !Array.isArray(activity.subActivities) || activity.subActivities.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No subactivities found in this activity",
+    // Find subactivity - can be by ID (integer) or subactivityId (string)
+    let subactivity = null;
+    const subactivityIdInt = parseInt(subactivityId);
+    if (!isNaN(subactivityIdInt) && subactivityIdInt > 0) {
+      subactivity = await SubActivity.findOne({
+        where: {
+          id: subactivityIdInt,
+          activityId: activity.id,
+        },
+      });
+    }
+    
+    if (!subactivity) {
+      subactivity = await SubActivity.findOne({
+        where: {
+          subactivityId: subactivityId,
+          activityId: activity.id,
+        },
       });
     }
 
-    // Verify the subactivity exists
-    const subactivityExists = activity.subActivities.some(
-      (subAct) => subAct._id && subAct._id.toString() === subactivityId
-    );
-
-    if (!subactivityExists) {
+    if (!subactivity) {
       return res.status(404).json({
         success: false,
         message: "Subactivity not found",
       });
     }
 
-    // Use findByIdAndUpdate with $pull to remove the subactivity from the activity's subActivities array
-    // Use runValidators: false to avoid validation errors on encrypted fields
-    const mongoose = require("mongoose");
-    const result = await Project.findByIdAndUpdate(
-      projectId,
-      {
-        $pull: { 
-          "activities.$[activity].subActivities": { _id: new mongoose.Types.ObjectId(subactivityId) }
-        }
-      },
-      {
-        arrayFilters: [{ "activity._id": new mongoose.Types.ObjectId(activityId) }],
-        runValidators: false,
-        new: false
-      }
-    );
+    // Delete the subactivity
+    await subactivity.destroy();
 
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found after update",
-      });
+    // Recalculate activity expense and project totalExpense
+    // This is handled by hooks, but we need to trigger saves
+    const updatedActivity = await Activity.findByPk(activity.id, {
+      include: [
+        {
+          model: SubActivity,
+          as: "subActivities",
+        },
+      ],
+    });
+
+    if (updatedActivity) {
+      // Trigger recalculation by saving (hooks will recalculate activity expense)
+      await updatedActivity.save();
     }
 
-    // Fetch the updated project to recalculate expenses
-    // Use lean() to avoid Mongoose casting issues with encrypted fields
-    const updatedProject = await Project.findById(projectId).lean();
+    // Recalculate project totalExpense
+    const updatedProject = await Project.findByPk(projectIdInt, {
+      include: [
+        {
+          model: Activity,
+          as: "activities",
+          include: [
+            {
+              model: SubActivity,
+              as: "subActivities",
+            },
+          ],
+        },
+      ],
+    });
 
-    if (!updatedProject) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found after deletion",
-      });
+    if (updatedProject) {
+      // Trigger recalculation by saving (hooks will recalculate totalExpense)
+      await updatedProject.save();
     }
-
-    // Recalculate expenses: activity expenses from sub-activities, then totalExpense from activities
-    // Need to decrypt expenses to calculate, then encrypt the result
-    const { decrypt, encrypt } = require("../utils/encryption");
-    
-    let totalExpense = 0;
-    const updates = {};
-
-    if (updatedProject.activities && Array.isArray(updatedProject.activities)) {
-      updatedProject.activities.forEach((activity, activityIndex) => {
-        // Calculate activity expense from sub-activities
-        let activityExpense = 0;
-        if (activity.subActivities && Array.isArray(activity.subActivities)) {
-          activity.subActivities.forEach(subActivity => {
-            if (subActivity.expense !== undefined && subActivity.expense !== null) {
-              let subExpense = 0;
-              if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
-                subExpense = parseFloat(decrypt(subActivity.expense)) || 0;
-              } else if (typeof subActivity.expense === 'number') {
-                subExpense = subActivity.expense;
-              }
-              activityExpense += subExpense;
-            }
-          });
-        }
-        
-        // Encrypt the calculated activity expense
-        const encryptedActivityExpense = encrypt(activityExpense.toString());
-        updates[`activities.${activityIndex}.expense`] = encryptedActivityExpense;
-        
-        totalExpense += activityExpense;
-      });
-    }
-
-    // Encrypt the totalExpense value
-    const encryptedTotalExpense = encrypt(totalExpense.toString());
-    updates.totalExpense = encryptedTotalExpense;
-
-    // Update activity expenses and totalExpense using MongoDB native collection method
-    // This bypasses Mongoose casting which would fail on encrypted string values
-    await Project.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(projectId) },
-      { $set: updates }
-    );
 
     // Check utilization and send notifications (non-blocking)
     try {
       const { checkProjectItemsUtilization } = require("../utils/utilizationReminder");
-      const projectForCheck = await Project.findById(projectId).lean();
-      if (projectForCheck) {
-        checkProjectItemsUtilization(projectForCheck).catch(err => {
+      if (updatedProject) {
+        checkProjectItemsUtilization(updatedProject.toJSON()).catch(err => {
           console.error("Error checking utilization:", err);
         });
       }
@@ -1355,13 +1494,13 @@ const deleteSubActivity = async (req, res) => {
       // Don't fail the request if notification fails
     }
 
-      await logActivity({
-        user: req.user,
-        action: "SUBACTIVITY_DELETED",
-        entityType: "subactivity",
-        entityId: subactivityId,
-        metadata: { projectId, activityId },
-      });
+    await logActivity({
+      user: req.user,
+      action: "SUBACTIVITY_DELETED",
+      entityType: "subactivity",
+      entityId: subactivity.id || subactivityId,
+      metadata: { projectId: projectIdInt, activityId: activity.id },
+    });
 
     res.status(200).json({
       success: true,
@@ -1370,9 +1509,9 @@ const deleteSubActivity = async (req, res) => {
   } catch (error) {
     console.error("Delete subactivity error:", error);
     
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -1391,8 +1530,8 @@ const deleteSubActivity = async (req, res) => {
 // ==================== REALLOCATION REQUEST FUNCTIONS ====================
 
 const createReallocationRequest = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const { sequelize } = require("../models");
+  const transaction = await sequelize.transaction();
 
   try {
     const {
@@ -1410,7 +1549,7 @@ const createReallocationRequest = async (req, res) => {
 
     // Validate required fields
     if (!requestType || !amount || !reason) {
-      await session.abortTransaction();
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: "Please provide requestType, amount, and reason",
@@ -1420,7 +1559,7 @@ const createReallocationRequest = async (req, res) => {
     // Validate requestType
     const validRequestTypes = ["project_to_project", "activity_to_activity", "subactivity_to_subactivity"];
     if (!validRequestTypes.includes(requestType)) {
-      await session.abortTransaction();
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: `requestType must be one of: ${validRequestTypes.join(", ")}`,
@@ -1430,14 +1569,14 @@ const createReallocationRequest = async (req, res) => {
     // Validate amount
     const reallocationAmount = parseFloat(amount);
     if (isNaN(reallocationAmount) || reallocationAmount <= 0) {
-      await session.abortTransaction();
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: "Amount must be a positive number",
       });
     }
 
-    const { decrypt } = require("../utils/encryption");
+    // Fields are already decrypted by model hooks
     let sourceCurrency, destinationCurrency;
     let sourceProject, destinationProject;
     let projectForActivity;
@@ -1445,16 +1584,18 @@ const createReallocationRequest = async (req, res) => {
     // Handle project-to-project reallocation
     if (requestType === "project_to_project") {
       if (!sourceProjectId || !destinationProjectId) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "sourceProjectId and destinationProjectId are required for project-to-project reallocation",
         });
       }
 
-      // Validate ObjectIds
-      if (!sourceProjectId.match(/^[0-9a-fA-F]{24}$/) || !destinationProjectId.match(/^[0-9a-fA-F]{24}$/)) {
-        await session.abortTransaction();
+      // Validate integer IDs
+      const sourceProjectIdInt = parseInt(sourceProjectId);
+      const destinationProjectIdInt = parseInt(destinationProjectId);
+      if (isNaN(sourceProjectIdInt) || sourceProjectIdInt <= 0 || isNaN(destinationProjectIdInt) || destinationProjectIdInt <= 0) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Invalid project ID format",
@@ -1463,12 +1604,15 @@ const createReallocationRequest = async (req, res) => {
 
       // Get source project (must belong to requesting user)
       sourceProject = await Project.findOne({
-        _id: sourceProjectId,
-        programPersonnel: req.user.id,
-      }).lean();
+        where: {
+          id: sourceProjectIdInt,
+          programPersonnelId: req.user.id,
+        },
+        transaction,
+      });
 
       if (!sourceProject) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Source project not found or you do not have access",
@@ -1476,38 +1620,26 @@ const createReallocationRequest = async (req, res) => {
       }
 
       // Get destination project
-      destinationProject = await Project.findById(destinationProjectId).lean();
+      destinationProject = await Project.findByPk(destinationProjectIdInt, { transaction });
 
       if (!destinationProject) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Destination project not found",
         });
       }
 
-      // Decrypt currencies
-      sourceCurrency = sourceProject.currency && typeof sourceProject.currency === 'string' && sourceProject.currency.includes(':')
-        ? decrypt(sourceProject.currency)
-        : sourceProject.currency;
+      // Fields are already decrypted by model hooks
+      sourceCurrency = sourceProject.currency;
+      destinationCurrency = destinationProject.currency;
 
-      destinationCurrency = destinationProject.currency && typeof destinationProject.currency === 'string' && destinationProject.currency.includes(':')
-        ? decrypt(destinationProject.currency)
-        : destinationProject.currency;
-
-      // Decrypt amountDonated to check balance
-      let sourceAmountDonated = 0;
-      if (sourceProject.amountDonated) {
-        if (typeof sourceProject.amountDonated === 'string' && sourceProject.amountDonated.includes(':')) {
-          sourceAmountDonated = parseFloat(decrypt(sourceProject.amountDonated)) || 0;
-        } else {
-          sourceAmountDonated = parseFloat(sourceProject.amountDonated) || 0;
-        }
-      }
+      // Get amountDonated (already decrypted by hooks)
+      const sourceAmountDonated = parseFloat(sourceProject.amountDonated) || 0;
 
       // Check if source has sufficient balance
       if (sourceAmountDonated < reallocationAmount) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: `Insufficient balance. Source project has ${sourceAmountDonated} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
@@ -1518,16 +1650,17 @@ const createReallocationRequest = async (req, res) => {
     // Handle activity-to-activity reallocation
     if (requestType === "activity_to_activity") {
       if (!sourceActivityId || !destinationActivityId || !projectId) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "sourceActivityId, destinationActivityId, and projectId are required for activity-to-activity reallocation",
         });
       }
 
-      // Validate projectId
-      if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-        await session.abortTransaction();
+      // Validate projectId - integer ID
+      const projectIdInt = parseInt(projectId);
+      if (isNaN(projectIdInt) || projectIdInt <= 0) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Invalid project ID format",
@@ -1536,34 +1669,71 @@ const createReallocationRequest = async (req, res) => {
 
       // Get project (must belong to requesting user)
       projectForActivity = await Project.findOne({
-        _id: projectId,
-        programPersonnel: req.user.id,
-      }).lean();
+        where: {
+          id: projectIdInt,
+          programPersonnelId: req.user.id,
+        },
+        transaction,
+      });
 
       if (!projectForActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Project not found or you do not have access",
         });
       }
 
-      // Decrypt currency
-      sourceCurrency = projectForActivity.currency && typeof projectForActivity.currency === 'string' && projectForActivity.currency.includes(':')
-        ? decrypt(projectForActivity.currency)
-        : projectForActivity.currency;
+      // Currency is already decrypted by hooks
+      sourceCurrency = projectForActivity.currency;
       destinationCurrency = sourceCurrency; // Same project, same currency
 
-      // Find source and destination activities
-      const sourceActivity = projectForActivity.activities?.find(
-        (act) => act._id?.toString() === sourceActivityId || act.activityId === sourceActivityId
-      );
-      const destinationActivity = projectForActivity.activities?.find(
-        (act) => act._id?.toString() === destinationActivityId || act.activityId === destinationActivityId
-      );
+      // Find source and destination activities from Activity table
+      let sourceActivity = null;
+      let destinationActivity = null;
+      
+      const sourceActivityIdInt = parseInt(sourceActivityId);
+      if (!isNaN(sourceActivityIdInt) && sourceActivityIdInt > 0) {
+        sourceActivity = await Activity.findOne({
+          where: {
+            id: sourceActivityIdInt,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+      if (!sourceActivity) {
+        sourceActivity = await Activity.findOne({
+          where: {
+            activityId: sourceActivityId,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+
+      const destinationActivityIdInt = parseInt(destinationActivityId);
+      if (!isNaN(destinationActivityIdInt) && destinationActivityIdInt > 0) {
+        destinationActivity = await Activity.findOne({
+          where: {
+            id: destinationActivityIdInt,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+      if (!destinationActivity) {
+        destinationActivity = await Activity.findOne({
+          where: {
+            activityId: destinationActivityId,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
 
       if (!sourceActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Source activity not found",
@@ -1571,35 +1741,28 @@ const createReallocationRequest = async (req, res) => {
       }
 
       if (!destinationActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Destination activity not found",
         });
       }
 
-      // Validate both activities are in the same project
-      if (sourceActivity._id.toString() === destinationActivity._id.toString()) {
-        await session.abortTransaction();
+      // Validate both activities are different
+      if (sourceActivity.id === destinationActivity.id) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Source and destination activities cannot be the same",
         });
       }
 
-      // Decrypt source activity budget
-      let sourceBudget = 0;
-      if (sourceActivity.budget !== undefined && sourceActivity.budget !== null) {
-        if (typeof sourceActivity.budget === 'string' && sourceActivity.budget.includes(':')) {
-          sourceBudget = parseFloat(decrypt(sourceActivity.budget)) || 0;
-        } else {
-          sourceBudget = parseFloat(sourceActivity.budget) || 0;
-        }
-      }
+      // Get source activity budget (already decrypted by hooks)
+      const sourceBudget = parseFloat(sourceActivity.budget) || 0;
 
       // Check if source has sufficient balance
       if (sourceBudget < reallocationAmount) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: `Insufficient balance. Source activity has ${sourceBudget} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
@@ -1610,16 +1773,17 @@ const createReallocationRequest = async (req, res) => {
     // Handle subactivity-to-subactivity reallocation
     if (requestType === "subactivity_to_subactivity") {
       if (!sourceSubactivityId || !destinationSubactivityId || !sourceActivityId || !destinationActivityId || !projectId) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "sourceSubactivityId, destinationSubactivityId, sourceActivityId, destinationActivityId, and projectId are required for subactivity-to-subactivity reallocation",
         });
       }
 
-      // Validate projectId
-      if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-        await session.abortTransaction();
+      // Validate projectId - integer ID
+      const projectIdInt = parseInt(projectId);
+      if (isNaN(projectIdInt) || projectIdInt <= 0) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Invalid project ID format",
@@ -1628,34 +1792,71 @@ const createReallocationRequest = async (req, res) => {
 
       // Get project (must belong to requesting user)
       projectForActivity = await Project.findOne({
-        _id: projectId,
-        programPersonnel: req.user.id,
-      }).lean();
+        where: {
+          id: projectIdInt,
+          programPersonnelId: req.user.id,
+        },
+        transaction,
+      });
 
       if (!projectForActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Project not found or you do not have access",
         });
       }
 
-      // Decrypt currency
-      sourceCurrency = projectForActivity.currency && typeof projectForActivity.currency === 'string' && projectForActivity.currency.includes(':')
-        ? decrypt(projectForActivity.currency)
-        : projectForActivity.currency;
+      // Currency is already decrypted by hooks
+      sourceCurrency = projectForActivity.currency;
       destinationCurrency = sourceCurrency; // Same project, same currency
 
-      // Find source and destination activities
-      const sourceActivity = projectForActivity.activities?.find(
-        (act) => act._id?.toString() === sourceActivityId || act.activityId === sourceActivityId
-      );
-      const destinationActivity = projectForActivity.activities?.find(
-        (act) => act._id?.toString() === destinationActivityId || act.activityId === destinationActivityId
-      );
+      // Find source and destination activities from Activity table
+      let sourceActivity = null;
+      let destinationActivity = null;
+      
+      const sourceActivityIdInt = parseInt(sourceActivityId);
+      if (!isNaN(sourceActivityIdInt) && sourceActivityIdInt > 0) {
+        sourceActivity = await Activity.findOne({
+          where: {
+            id: sourceActivityIdInt,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+      if (!sourceActivity) {
+        sourceActivity = await Activity.findOne({
+          where: {
+            activityId: sourceActivityId,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+
+      const destinationActivityIdInt = parseInt(destinationActivityId);
+      if (!isNaN(destinationActivityIdInt) && destinationActivityIdInt > 0) {
+        destinationActivity = await Activity.findOne({
+          where: {
+            id: destinationActivityIdInt,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
+      if (!destinationActivity) {
+        destinationActivity = await Activity.findOne({
+          where: {
+            activityId: destinationActivityId,
+            projectId: projectIdInt,
+          },
+          transaction,
+        });
+      }
 
       if (!sourceActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Source activity not found",
@@ -1663,7 +1864,7 @@ const createReallocationRequest = async (req, res) => {
       }
 
       if (!destinationActivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Destination activity not found",
@@ -1671,24 +1872,60 @@ const createReallocationRequest = async (req, res) => {
       }
 
       // Validate both subactivities are in the same activity
-      if (sourceActivity._id.toString() !== destinationActivity._id.toString()) {
-        await session.abortTransaction();
+      if (sourceActivity.id !== destinationActivity.id) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Both subactivities must be in the same activity",
         });
       }
 
-      // Find source and destination subactivities
-      const sourceSubactivity = sourceActivity.subActivities?.find(
-        (subAct) => subAct._id?.toString() === sourceSubactivityId || subAct.subactivityId === sourceSubactivityId
-      );
-      const destinationSubactivity = destinationActivity.subActivities?.find(
-        (subAct) => subAct._id?.toString() === destinationSubactivityId || subAct.subactivityId === destinationSubactivityId
-      );
+      // Find source and destination subactivities from SubActivity table
+      let sourceSubactivity = null;
+      let destinationSubactivity = null;
+      
+      const sourceSubactivityIdInt = parseInt(sourceSubactivityId);
+      if (!isNaN(sourceSubactivityIdInt) && sourceSubactivityIdInt > 0) {
+        sourceSubactivity = await SubActivity.findOne({
+          where: {
+            id: sourceSubactivityIdInt,
+            activityId: sourceActivity.id,
+          },
+          transaction,
+        });
+      }
+      if (!sourceSubactivity) {
+        sourceSubactivity = await SubActivity.findOne({
+          where: {
+            subactivityId: sourceSubactivityId,
+            activityId: sourceActivity.id,
+          },
+          transaction,
+        });
+      }
+
+      const destinationSubactivityIdInt = parseInt(destinationSubactivityId);
+      if (!isNaN(destinationSubactivityIdInt) && destinationSubactivityIdInt > 0) {
+        destinationSubactivity = await SubActivity.findOne({
+          where: {
+            id: destinationSubactivityIdInt,
+            activityId: destinationActivity.id,
+          },
+          transaction,
+        });
+      }
+      if (!destinationSubactivity) {
+        destinationSubactivity = await SubActivity.findOne({
+          where: {
+            subactivityId: destinationSubactivityId,
+            activityId: destinationActivity.id,
+          },
+          transaction,
+        });
+      }
 
       if (!sourceSubactivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Source subactivity not found",
@@ -1696,7 +1933,7 @@ const createReallocationRequest = async (req, res) => {
       }
 
       if (!destinationSubactivity) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Destination subactivity not found",
@@ -1704,27 +1941,20 @@ const createReallocationRequest = async (req, res) => {
       }
 
       // Validate source and destination are different
-      if (sourceSubactivity._id.toString() === destinationSubactivity._id.toString()) {
-        await session.abortTransaction();
+      if (sourceSubactivity.id === destinationSubactivity.id) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Source and destination subactivities cannot be the same",
         });
       }
 
-      // Decrypt source subactivity budget
-      let sourceBudget = 0;
-      if (sourceSubactivity.budget !== undefined && sourceSubactivity.budget !== null) {
-        if (typeof sourceSubactivity.budget === 'string' && sourceSubactivity.budget.includes(':')) {
-          sourceBudget = parseFloat(decrypt(sourceSubactivity.budget)) || 0;
-        } else {
-          sourceBudget = parseFloat(sourceSubactivity.budget) || 0;
-        }
-      }
+      // Get source subactivity budget (already decrypted by hooks)
+      const sourceBudget = parseFloat(sourceSubactivity.budget) || 0;
 
       // Check if source has sufficient balance
       if (sourceBudget < reallocationAmount) {
-        await session.abortTransaction();
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: `Insufficient balance. Source subactivity has ${sourceBudget} ${sourceCurrency}, but trying to reallocate ${reallocationAmount} ${sourceCurrency}`,
@@ -1734,7 +1964,7 @@ const createReallocationRequest = async (req, res) => {
 
     // Create reallocation request
     const requestData = {
-      requestedBy: req.user.id,
+      requestedById: req.user.id,
       requestType,
       amount: reallocationAmount,
       sourceCurrency,
@@ -1744,45 +1974,43 @@ const createReallocationRequest = async (req, res) => {
     };
 
     if (requestType === "project_to_project") {
-      requestData.sourceProjectId = sourceProjectId;
-      requestData.destinationProjectId = destinationProjectId;
+      requestData.sourceProjectId = parseInt(sourceProjectId);
+      requestData.destinationProjectId = parseInt(destinationProjectId);
     } else {
-      requestData.projectId = projectId;
-      requestData.sourceActivityId = sourceActivityId;
-      requestData.destinationActivityId = destinationActivityId;
+      requestData.projectId = parseInt(projectId);
+      requestData.sourceActivityId = sourceActivityId; // Can be string or integer
+      requestData.destinationActivityId = destinationActivityId; // Can be string or integer
       if (requestType === "subactivity_to_subactivity") {
-        requestData.sourceSubactivityId = sourceSubactivityId;
-        requestData.destinationSubactivityId = destinationSubactivityId;
+        requestData.sourceSubactivityId = sourceSubactivityId; // Can be string or integer
+        requestData.destinationSubactivityId = destinationSubactivityId; // Can be string or integer
       }
     }
 
-    const reallocationRequest = await ReallocationRequest.create([requestData], { session });
+    const reallocationRequest = await ReallocationRequest.create(requestData, { transaction });
 
-    await session.commitTransaction();
+    await transaction.commit();
 
     await logActivity({
       user: req.user,
       action: "REALLOCATION_CREATED",
       entityType: "reallocation",
-      entityId: reallocationRequest[0]._id,
+      entityId: reallocationRequest.id,
     });
-
-
 
     res.status(201).json({
       success: true,
       message: "Reallocation request created successfully",
       data: {
-        ...reallocationRequest[0].toObject(),
+        ...reallocationRequest.toJSON(),
         requiresExchangeRate: sourceCurrency !== destinationCurrency,
       },
     });
   } catch (error) {
-    await session.abortTransaction();
+    await transaction.rollback();
     console.error("Create reallocation request error:", error);
 
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -1794,8 +2022,6 @@ const createReallocationRequest = async (req, res) => {
       success: false,
       message: "Server error. Please try again later.",
     });
-  } finally {
-    session.endSession();
   }
 
 };
@@ -1804,23 +2030,49 @@ const getAllReallocationRequests = async (req, res) => {
   try {
     const { status } = req.query;
 
-    const query = { requestedBy: req.user.id };
+    const where = { requestedById: req.user.id };
     if (status && ["pending", "approved", "rejected"].includes(status)) {
-      query.status = status;
+      where.status = status;
     }
 
-    const requests = await ReallocationRequest.find(query)
-      .populate("requestedBy", "name email")
-      .populate("sourceProjectId", "projectId title")
-      .populate("destinationProjectId", "projectId title")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email")
-      .sort({ createdAt: -1 });
+    const requests = await ReallocationRequest.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "requestedBy",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Project,
+          as: "sourceProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "destinationProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "project",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: User,
+          as: "approvedBy",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const requestsData = requests.map((request) => request.toJSON());
 
     res.status(200).json({
       success: true,
-      count: requests.length,
-      data: requests,
+      count: requestsData.length,
+      data: requestsData,
     });
   } catch (error) {
     console.error("Get all reallocation requests error:", error);
@@ -1835,7 +2087,9 @@ const getReallocationRequestById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate id format - integer ID
+    const requestIdInt = parseInt(id);
+    if (isNaN(requestIdInt) || requestIdInt <= 0) {
       return res.status(400).json({
         success: false,
         message: "Invalid request ID format",
@@ -1843,14 +2097,38 @@ const getReallocationRequestById = async (req, res) => {
     }
 
     const request = await ReallocationRequest.findOne({
-      _id: id,
-      requestedBy: req.user.id,
-    })
-      .populate("requestedBy", "name email")
-      .populate("sourceProjectId", "projectId title")
-      .populate("destinationProjectId", "projectId title")
-      .populate("projectId", "projectId title")
-      .populate("approvedBy", "name email");
+      where: {
+        id: requestIdInt,
+        requestedById: req.user.id,
+      },
+      include: [
+        {
+          model: User,
+          as: "requestedBy",
+          attributes: ["name", "email"],
+        },
+        {
+          model: Project,
+          as: "sourceProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "destinationProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "project",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: User,
+          as: "approvedBy",
+          attributes: ["name", "email"],
+        },
+      ],
+    });
 
     if (!request) {
       return res.status(404).json({
@@ -1861,7 +2139,7 @@ const getReallocationRequestById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: request,
+      data: request.toJSON(),
     });
   } catch (error) {
     console.error("Get reallocation request by ID error:", error);
@@ -1874,41 +2152,33 @@ const getReallocationRequestById = async (req, res) => {
 
 const getDashboardData = async (req, res) => {
   try {
-    const { decrypt } = require("../utils/encryption");
-
     // Fetch Statistics for logged-in program user
-    const totalProjects = await Project.countDocuments({
-      programPersonnel: req.user.id,
+    const totalProjects = await Project.count({
+      where: {
+        programPersonnelId: req.user.id,
+      },
     });
-    const totalReallocations = await ReallocationRequest.countDocuments({
-      requestedBy: req.user.id,
+    const totalReallocations = await ReallocationRequest.count({
+      where: {
+        requestedById: req.user.id,
+      },
     });
 
     // Get all projects created by this user to calculate underspent/overspent
-    const allProjects = await Project.find({
-      programPersonnel: req.user.id,
-    })
-      .select("amountDonated totalExpense")
-      .lean();
+    const allProjects = await Project.findAll({
+      where: {
+        programPersonnelId: req.user.id,
+      },
+      attributes: ["amountDonated", "totalExpense"],
+    });
 
     let underspentProjects = 0;
     let overspentProjects = 0;
 
     allProjects.forEach((project) => {
-      let amountDonated = project.amountDonated;
-      let totalExpense = project.totalExpense;
-
-      // Decrypt if encrypted
-      if (amountDonated && typeof amountDonated === "string" && amountDonated.includes(":")) {
-        amountDonated = parseFloat(decrypt(amountDonated)) || 0;
-      }
-      if (totalExpense && typeof totalExpense === "string" && totalExpense.includes(":")) {
-        totalExpense = parseFloat(decrypt(totalExpense)) || 0;
-      }
-
-      // Ensure they are numbers
-      amountDonated = typeof amountDonated === "number" ? amountDonated : parseFloat(amountDonated) || 0;
-      totalExpense = typeof totalExpense === "number" ? totalExpense : parseFloat(totalExpense) || 0;
+      // Fields are already decrypted by model hooks
+      const amountDonated = parseFloat(project.amountDonated) || 0;
+      const totalExpense = parseFloat(project.totalExpense) || 0;
 
       if (totalExpense < amountDonated) {
         underspentProjects++;
@@ -1919,89 +2189,81 @@ const getDashboardData = async (req, res) => {
 
     // Reallocation Status Distribution (for this user's requests)
     const reallocationStatuses = ["pending", "approved", "rejected"];
-    const reallocationStatusRaw = await ReallocationRequest.aggregate([
-      {
-        $match: { requestedBy: new mongoose.Types.ObjectId(req.user.id) },
-      },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
+    const reallocationStatusDistribution = {};
+    
+    for (const status of reallocationStatuses) {
+      const count = await ReallocationRequest.count({
+        where: {
+          requestedById: req.user.id,
+          status,
         },
-      },
-    ]);
-
-    const reallocationStatusDistribution = reallocationStatuses.reduce((acc, status) => {
-      acc[status] =
-        reallocationStatusRaw.find((item) => item._id === status)?.count || 0;
-      return acc;
-    }, {});
+      });
+      reallocationStatusDistribution[status] = count;
+    }
 
     // Project Status Distribution (for this user's projects)
     const projectStatuses = ["Not Started", "In Progress", "Completed"];
-    const projectStatusRaw = await Project.aggregate([
-      {
-        $match: { programPersonnel: new mongoose.Types.ObjectId(req.user.id) },
-      },
-      {
-        $group: {
-          _id: "$projectStatus",
-          count: { $sum: 1 },
+    const projectStatusDistribution = {};
+    
+    for (const status of projectStatuses) {
+      const count = await Project.count({
+        where: {
+          programPersonnelId: req.user.id,
+          projectStatus: status,
         },
-      },
-    ]);
-
-    const projectStatusDistribution = projectStatuses.reduce((acc, status) => {
-      acc[status] =
-        projectStatusRaw.find((item) => item._id === status)?.count || 0;
-      return acc;
-    }, {});
+      });
+      projectStatusDistribution[status] = count;
+    }
 
     // Fetch recent 5 projects created by this user
-    const recentProjects = await Project.find({
-      programPersonnel: req.user.id,
-    })
-      .select("projectId title projectStatus createdAt")
-      .populate("financePersonnel", "name email")
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
-
-    // Decrypt project fields
-    const decryptedRecentProjects = recentProjects.map((project) => {
-      const p = { ...project };
-      if (p.title && typeof p.title === "string" && p.title.includes(":")) {
-        p.title = decrypt(p.title);
-      }
-      return p;
+    const recentProjects = await Project.findAll({
+      where: {
+        programPersonnelId: req.user.id,
+      },
+      attributes: ["id", "projectId", "title", "projectStatus", "createdAt"],
+      include: [
+        {
+          model: User,
+          as: "financePersonnel",
+          attributes: ["name", "email"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 5,
     });
+
+    // Projects are already decrypted by model hooks
+    const recentProjectsData = recentProjects.map((project) => project.toJSON());
 
     // Fetch recent 5 reallocation requests made by this user
-    const recentReallocations = await ReallocationRequest.find({
-      requestedBy: req.user.id,
-    })
-      .select("requestType status amount sourceCurrency destinationCurrency createdAt")
-      .populate("sourceProjectId", "projectId title")
-      .populate("destinationProjectId", "projectId title")
-      .populate("projectId", "projectId title")
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
-
-    // Decrypt project titles in reallocation requests
-    const decryptedRecentReallocations = recentReallocations.map((request) => {
-      const r = { ...request };
-      if (r.sourceProjectId && r.sourceProjectId.title && typeof r.sourceProjectId.title === "string" && r.sourceProjectId.title.includes(":")) {
-        r.sourceProjectId.title = decrypt(r.sourceProjectId.title);
-      }
-      if (r.destinationProjectId && r.destinationProjectId.title && typeof r.destinationProjectId.title === "string" && r.destinationProjectId.title.includes(":")) {
-        r.destinationProjectId.title = decrypt(r.destinationProjectId.title);
-      }
-      if (r.projectId && r.projectId.title && typeof r.projectId.title === "string" && r.projectId.title.includes(":")) {
-        r.projectId.title = decrypt(r.projectId.title);
-      }
-      return r;
+    const recentReallocations = await ReallocationRequest.findAll({
+      where: {
+        requestedById: req.user.id,
+      },
+      attributes: ["id", "requestType", "status", "amount", "sourceCurrency", "destinationCurrency", "createdAt"],
+      include: [
+        {
+          model: Project,
+          as: "sourceProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "destinationProject",
+          attributes: ["projectId", "title"],
+        },
+        {
+          model: Project,
+          as: "project",
+          attributes: ["projectId", "title"],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 5,
     });
+
+    // Reallocation requests are already decrypted by model hooks
+    const recentReallocationsData = recentReallocations.map((request) => request.toJSON());
 
     res.status(200).json({
       success: true,
@@ -2015,8 +2277,8 @@ const getDashboardData = async (req, res) => {
         reallocationStatusDistribution,
         projectStatusDistribution,
       },
-      recentProjects: decryptedRecentProjects,
-      recentReallocations: decryptedRecentReallocations,
+      recentProjects: recentProjectsData,
+      recentReallocations: recentReallocationsData,
     });
   } catch (error) {
     console.error("Get dashboard data error:", error);

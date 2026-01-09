@@ -68,7 +68,8 @@ const EditProject = () => {
           // Set activities with proper structure (only budget and expense are editable)
           if (project.activities && Array.isArray(project.activities)) {
             const formattedActivities = project.activities.map(activity => ({
-              _id: activity._id,
+              id: activity.id || activity._id,
+              _id: activity.id || activity._id, // Keep _id for compatibility
               activityId: activity.activityId || '',
               name: activity.name || '',
               description: activity.description || '',
@@ -76,7 +77,8 @@ const EditProject = () => {
               expense: activity.expense?.toString() || '',
               projectStatus: activity.projectStatus || 'Not Started',
               subActivities: (activity.subActivities || []).map(sub => ({
-                _id: sub._id,
+                id: sub.id || sub._id,
+                _id: sub.id || sub._id, // Keep _id for compatibility
                 subactivityId: sub.subactivityId || '',
                 name: sub.name || '',
                 budget: sub.budget?.toString() || '',
@@ -153,12 +155,14 @@ const EditProject = () => {
     try {
       // Prepare activities data - only include budget and expense fields
       const activitiesData = activities.map(activity => ({
-        _id: activity._id,
+        id: activity.id || activity._id,
+        _id: activity.id || activity._id, // Keep _id for compatibility
         activityId: activity.activityId,
         budget: activity.budget ? parseFloat(activity.budget) : undefined,
         expense: activity.expense ? parseFloat(activity.expense) : undefined,
         subActivities: (activity.subActivities || []).map(sub => ({
-          _id: sub._id,
+          id: sub.id || sub._id,
+          _id: sub.id || sub._id, // Keep _id for compatibility
           subactivityId: sub.subactivityId,
           budget: sub.budget ? parseFloat(sub.budget) : undefined,
           expense: sub.expense ? parseFloat(sub.expense) : undefined

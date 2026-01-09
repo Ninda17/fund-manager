@@ -306,7 +306,7 @@ const ActivityDetail = () => {
             {activity.name || "Unnamed Activity"}
           </h1>
           <p className="text-gray-600 text-xs sm:text-sm lg:text-base break-words">
-            Activity ID: {activity.activityId || activity._id}
+            Activity ID: {activity.activityId || activity.id || activity._id}
           </p>
         </div>
 

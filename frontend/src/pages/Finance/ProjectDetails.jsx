@@ -563,7 +563,7 @@ const ProjectDetails = () => {
                       <tr 
                         key={index} 
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/finance/projects/${id}/activities/${activity._id}`)}
+                        onClick={() => navigate(`/finance/projects/${id}/activities/${activity.id || activity._id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-900">{activity.activityId}</span>

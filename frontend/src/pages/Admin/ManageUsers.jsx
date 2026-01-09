@@ -186,9 +186,9 @@ const ManageUsers = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {users.map((user) => (
                       <tr
-                        key={user._id}
+                        key={user.id}
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/admin/users/${user._id}`)}
+                        onClick={() => navigate(`/admin/users/${user.id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap capitalize">
                           <span className="text-sm font-medium text-gray-900">
@@ -234,9 +234,9 @@ const ManageUsers = () => {
             <div className="lg:hidden space-y-4">
               {users.map((user) => (
                 <div
-                  key={user._id}
+                  key={user.id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/admin/users/${user._id}`)}
+                  onClick={() => navigate(`/admin/users/${user.id}`)}
                 >
                   <div className="space-y-2">
                     <div className="flex justify-between">

@@ -1,5 +1,5 @@
 // utils/logActivity.js - FINAL PRODUCTION VERSION
-const ActivityLog = require("../models/activityLogModel");
+const { ActivityLog } = require("../models");
 
 const logActivity = async ({
   user,
@@ -12,7 +12,7 @@ const logActivity = async ({
   try {
     // Prepare data for log
     const logData = {
-      user: user._id || user.id,
+      userId: user.id || user._id, // Sequelize uses 'id', Mongoose uses '_id'
       userName: user.name || "Unknown User",
       userEmail: user.email || "unknown@example.com",
       userRole: user.role || "unknown",

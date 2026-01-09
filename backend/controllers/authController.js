@@ -3,6 +3,7 @@ const OTP = require("../models/otpModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const { Op } = require("sequelize");
 const { sendOTPEmail, sendVerificationEmail } = require("../utils/emailService");
 
 const register = async (req, res) => {
@@ -18,7 +19,7 @@ const register = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -63,7 +64,7 @@ const register = async (req, res) => {
       success: true,
       message: "User registered successfully. Please check your email to verify your account.",
       data: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -74,9 +75,9 @@ const register = async (req, res) => {
       },
     });
   } catch (error) {
-    // Handle validation errors from mongoose
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) => err.message);
+    // Handle validation errors from Sequelize
+    if (error.name === "SequelizeValidationError") {
+      const errors = error.errors.map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
@@ -84,15 +85,15 @@ const register = async (req, res) => {
       });
     }
 
-    // Handle duplicate key error (email)
-    if (error.code === 11000) {
+    // Handle duplicate key error (email) - Sequelize unique constraint
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
         message: "User with this email already exists",
       });
     }
 
-    // Handle admin limit error (from pre-save hook)
+    // Handle admin limit error (from beforeCreate hook)
     if (error.message === "Only one admin account is allowed") {
       return res.status(400).json({
         success: false,
@@ -122,7 +123,7 @@ const login = async (req, res) => {
     }
 
     // Find user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -162,7 +163,7 @@ const login = async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       {
-        id: user._id,
+        id: user.id,
         email: user.email,
         role: user.role,
       },
@@ -179,7 +180,7 @@ const login = async (req, res) => {
       data: {
         token,
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -199,7 +200,9 @@ const login = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -221,7 +224,7 @@ const getUserProfile = async (req, res) => {
 
 const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -230,6 +233,7 @@ const updateUserProfile = async (req, res) => {
       });
     }
 
+    // Update user fields
     user.name = req.body.name || user.name;
     // Email cannot be updated through this endpoint
     // Password cannot be updated through this endpoint
@@ -240,7 +244,7 @@ const updateUserProfile = async (req, res) => {
     // Generate new token
     const token = jwt.sign(
       {
-        id: updatedUser._id,
+        id: updatedUser.id,
         email: updatedUser.email,
         role: updatedUser.role,
       },
@@ -256,7 +260,7 @@ const updateUserProfile = async (req, res) => {
       data: {
         token,
         user: {
-          id: updatedUser._id,
+          id: updatedUser.id,
           name: updatedUser.name,
           email: updatedUser.email,
           role: updatedUser.role,
@@ -295,7 +299,7 @@ const updatePassword = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -368,7 +372,7 @@ const requestPasswordReset = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Delete any existing OTPs for this email
-    await OTP.deleteMany({ email: user.email });
+    await OTP.destroy({ where: { email: user.email } });
 
     // Save OTP to database
     await OTP.create({
@@ -432,10 +436,12 @@ const verifyOTPAndResetPassword = async (req, res) => {
 
     // Find OTP
     const otpRecord = await OTP.findOne({
-      email: user.email,
-      otp,
-      isUsed: false,
-      expiresAt: { $gt: new Date() }, // Not expired
+      where: {
+        email: user.email,
+        otp,
+        isUsed: false,
+        expiresAt: { [Op.gt]: new Date() }, // Not expired
+      },
     });
 
     if (!otpRecord) {
@@ -458,7 +464,7 @@ const verifyOTPAndResetPassword = async (req, res) => {
     await otpRecord.save();
 
     // Delete all OTPs for this email
-    await OTP.deleteMany({ email: user.email });
+    await OTP.destroy({ where: { email: user.email } });
 
     res.status(200).json({
       success: true,
@@ -487,8 +493,10 @@ const verifyEmail = async (req, res) => {
 
     // Find user with matching token and not expired
     const user = await User.findOne({
-      emailVerificationToken: token,
-      emailVerificationExpires: { $gt: new Date() },
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpires: { [Op.gt]: new Date() },
+      },
     });
 
     if (!user) {

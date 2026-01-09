@@ -131,21 +131,21 @@ const Reports = () => {
       // Generate filename
       let filename = `report_${type}_${Date.now()}.xlsx`;
       if (type === 'project') {
-        const project = allProjects.find(p => p._id === projectId);
+        const project = allProjects.find(p => (p.id || p._id)?.toString() === projectId?.toString());
         filename = `project_${project?.projectId || projectId}_${Date.now()}.xlsx`;
       } else if (type === 'activity') {
         const project = projectDetails[projectId];
         const activity = project?.activities?.find(a => 
-          a._id?.toString() === activityId || a.activityId === activityId
+          (a.id || a._id)?.toString() === activityId?.toString() || a.activityId === activityId
         );
         filename = `activity_${activity?.activityId || activityId}_${Date.now()}.xlsx`;
       } else if (type === 'subactivity') {
         const project = projectDetails[projectId];
         const activity = project?.activities?.find(a => 
-          a._id?.toString() === activityId || a.activityId === activityId
+          (a.id || a._id)?.toString() === activityId?.toString() || a.activityId === activityId
         );
         const subactivity = activity?.subActivities?.find(sa => 
-          sa._id?.toString() === subactivityId || sa.subactivityId === subactivityId
+          (sa.id || sa._id)?.toString() === subactivityId?.toString() || sa.subactivityId === subactivityId
         );
         filename = `subactivity_${subactivity?.subactivityId || subactivityId}_${Date.now()}.xlsx`;
       }
@@ -439,13 +439,14 @@ const Reports = () => {
         ) : (
           <div className="space-y-3 sm:space-y-4 md:space-y-5">
             {projects.map((project) => {
-              const isProjectExpanded = expandedProjects[project._id];
-              const projectDetail = projectDetails[project._id];
+              const projectIdKey = project.id || project._id;
+              const isProjectExpanded = expandedProjects[projectIdKey];
+              const projectDetail = projectDetails[projectIdKey];
               const activities = projectDetail?.activities || [];
 
               return (
                 <div
-                  key={project._id}
+                  key={projectIdKey}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-shadow hover:shadow-md"
                 >
                   {/* Project Header */}
@@ -454,7 +455,7 @@ const Reports = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
                           <button
-                            onClick={() => toggleProject(project._id)}
+                            onClick={() => toggleProject(projectIdKey)}
                             className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0 mt-0.5 sm:mt-1"
                             aria-label={isProjectExpanded ? 'Collapse project' : 'Expand project'}
                           >
@@ -508,11 +509,11 @@ const Reports = () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleDownloadReport('project', project._id)}
-                        disabled={downloading[`project-${project._id}--`]}
+                        onClick={() => handleDownloadReport('project', projectIdKey)}
+                        disabled={downloading[`project-${projectIdKey}--`]}
                         className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium shadow-sm hover:shadow-md"
                       >
-                        {downloading[`project-${project._id}--`] ? (
+                        {downloading[`project-${projectIdKey}--`] ? (
                           <>
                             <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -544,20 +545,21 @@ const Reports = () => {
                       ) : (
                         <div className="p-3 sm:p-4 md:p-5 space-y-2 sm:space-y-3">
                           {activities.map((activity) => {
-                            const activityKey = `${project._id}-${activity._id?.toString() || activity.activityId}`;
+                            const activityIdKey = activity.id || activity._id || activity.activityId;
+                            const activityKey = `${projectIdKey}-${activityIdKey}`;
                             const isActivityExpanded = expandedActivities[activityKey];
                             const subActivities = activity.subActivities || [];
 
                             return (
                               <div
-                                key={activity._id || activity.activityId}
+                                key={activityIdKey}
                                 className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 transition-shadow hover:shadow-sm"
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-start gap-2 sm:gap-3 mb-2">
                                       <button
-                                        onClick={() => toggleActivity(project._id, activity._id?.toString() || activity.activityId)}
+                                        onClick={() => toggleActivity(projectIdKey, activityIdKey)}
                                         className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0 mt-0.5"
                                         disabled={subActivities.length === 0}
                                         aria-label={isActivityExpanded ? 'Collapse activity' : 'Expand activity'}
@@ -588,11 +590,11 @@ const Reports = () => {
                                     </div>
                                   </div>
                                   <button
-                                    onClick={() => handleDownloadReport('activity', project._id, activity._id?.toString() || activity.activityId)}
-                                    disabled={downloading[`activity-${project._id}-${activity._id?.toString() || activity.activityId}-`]}
+                                    onClick={() => handleDownloadReport('activity', projectIdKey, activityIdKey)}
+                                    disabled={downloading[`activity-${projectIdKey}-${activityIdKey}-`]}
                                     className="w-full sm:w-auto px-3 py-1.5 sm:py-2 bg-primary text-white text-xs sm:text-sm rounded-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2 font-medium shadow-sm hover:shadow-md flex-shrink-0"
                                   >
-                                    {downloading[`activity-${project._id}-${activity._id?.toString() || activity.activityId}-`] ? (
+                                    {downloading[`activity-${projectIdKey}-${activityIdKey}-`] ? (
                                       <>
                                         <svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -616,9 +618,11 @@ const Reports = () => {
                                 {/* Subactivities List (when expanded) */}
                                 {isActivityExpanded && subActivities.length > 0 && (
                                   <div className="mt-2 sm:mt-3 ml-5.5 sm:ml-7 space-y-2 border-t border-gray-100 pt-2 sm:pt-3">
-                                    {subActivities.map((subActivity) => (
+                                    {subActivities.map((subActivity) => {
+                                      const subActivityIdKey = subActivity.id || subActivity._id || subActivity.subactivityId;
+                                      return (
                                       <div
-                                        key={subActivity._id || subActivity.subactivityId}
+                                        key={subActivityIdKey}
                                         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 bg-gray-50 rounded-lg p-2.5 sm:p-3 transition-colors hover:bg-gray-100"
                                       >
                                         <div className="flex-1 min-w-0">
@@ -630,11 +634,11 @@ const Reports = () => {
                                           </p>
                                         </div>
                                         <button
-                                          onClick={() => handleDownloadReport('subactivity', project._id, activity._id?.toString() || activity.activityId, subActivity._id?.toString() || subActivity.subactivityId)}
-                                          disabled={downloading[`subactivity-${project._id}-${activity._id?.toString() || activity.activityId}-${subActivity._id?.toString() || subActivity.subactivityId}`]}
+                                          onClick={() => handleDownloadReport('subactivity', projectIdKey, activityIdKey, subActivityIdKey)}
+                                          disabled={downloading[`subactivity-${projectIdKey}-${activityIdKey}-${subActivityIdKey}`]}
                                           className="w-full sm:w-auto px-2.5 sm:px-3 py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 font-medium shadow-sm hover:shadow-md flex-shrink-0"
                                         >
-                                          {downloading[`subactivity-${project._id}-${activity._id?.toString() || activity.activityId}-${subActivity._id?.toString() || subActivity.subactivityId}`] ? (
+                                          {downloading[`subactivity-${projectIdKey}-${activityIdKey}-${subActivityIdKey}`] ? (
                                             <>
                                               <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -652,7 +656,8 @@ const Reports = () => {
                                           )}
                                         </button>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>

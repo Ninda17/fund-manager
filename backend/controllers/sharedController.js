@@ -1,6 +1,66 @@
 const ExcelJS = require('exceljs');
-const Project = require('../models/projectModel');
+const { Project, Activity, SubActivity, User } = require('../models');
 const { decrypt } = require('../utils/encryption');
+
+// Helper function to decrypt nested activities and subactivities
+const decryptActivityData = (activity) => {
+  if (!activity) return activity;
+  
+  const decryptField = (encryptedValue, returnType = 'string') => {
+    if (!encryptedValue || typeof encryptedValue !== 'string') {
+      return encryptedValue;
+    }
+    
+    // Check if encrypted (contains ':')
+    if (!encryptedValue.includes(':')) {
+      return encryptedValue;
+    }
+    
+    try {
+      const decrypted = decrypt(encryptedValue);
+      
+      if (returnType === 'number') {
+        return parseFloat(decrypted) || 0;
+      }
+      
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      return encryptedValue; // Return as-is if decryption fails
+    }
+  };
+  
+  // Decrypt activity fields
+  if (activity.name !== null && activity.name !== undefined) {
+    activity.name = decryptField(activity.name);
+  }
+  if (activity.description !== null && activity.description !== undefined) {
+    activity.description = decryptField(activity.description);
+  }
+  if (activity.budget !== null && activity.budget !== undefined) {
+    activity.budget = decryptField(activity.budget, 'number');
+  }
+  if (activity.expense !== null && activity.expense !== undefined) {
+    activity.expense = decryptField(activity.expense, 'number');
+  }
+  
+  // Decrypt subactivities if present
+  if (activity.subActivities && Array.isArray(activity.subActivities)) {
+    activity.subActivities.forEach(subActivity => {
+      if (subActivity.name !== null && subActivity.name !== undefined) {
+        subActivity.name = decryptField(subActivity.name);
+      }
+      if (subActivity.budget !== null && subActivity.budget !== undefined) {
+        subActivity.budget = decryptField(subActivity.budget, 'number');
+      }
+      if (subActivity.expense !== null && subActivity.expense !== undefined) {
+        subActivity.expense = decryptField(subActivity.expense, 'number');
+      }
+    });
+  }
+  
+  return activity;
+};
 
 /**
  * Download Project Report
@@ -10,19 +70,66 @@ const downloadProjectReport = async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    // Validate projectId format
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid project ID format',
+    // Validate projectId format - can be integer ID or projectId string
+    let project = null;
+    
+    // Try to find by integer ID first
+    const projectIdInt = parseInt(projectId);
+    if (!isNaN(projectIdInt) && projectIdInt > 0) {
+      project = await Project.findByPk(projectIdInt, {
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
       });
     }
-
-    // Get project with populated fields
-    const project = await Project.findById(projectId)
-      .populate('programPersonnel', 'name email')
-      .populate('financePersonnel', 'name email')
-      .lean();
+    
+    // If not found by integer ID, try to find by projectId string
+    if (!project) {
+      project = await Project.findOne({
+        where: { projectId: projectId },
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
+      });
+    }
 
     if (!project) {
       return res.status(404).json({
@@ -31,73 +138,13 @@ const downloadProjectReport = async (req, res) => {
       });
     }
 
-    // Decrypt all encrypted fields
-    const decrypted = { ...project };
+    // Convert to plain object (fields are already decrypted by model hooks)
+    const decrypted = project.toJSON();
 
-    // Decrypt project fields
-    if (decrypted.donorName && typeof decrypted.donorName === 'string' && decrypted.donorName.includes(':')) {
-      decrypted.donorName = decrypt(decrypted.donorName);
-    }
-    if (decrypted.description && typeof decrypted.description === 'string' && decrypted.description !== '' && decrypted.description.includes(':')) {
-      decrypted.description = decrypt(decrypted.description);
-    }
-    if (decrypted.amountDonated && typeof decrypted.amountDonated === 'string' && decrypted.amountDonated.includes(':')) {
-      decrypted.amountDonated = parseFloat(decrypt(decrypted.amountDonated)) || 0;
-    }
-    if (decrypted.startDate && typeof decrypted.startDate === 'string' && decrypted.startDate.includes(':')) {
-      decrypted.startDate = new Date(decrypt(decrypted.startDate));
-    }
-    if (decrypted.endDate && typeof decrypted.endDate === 'string' && decrypted.endDate.includes(':')) {
-      decrypted.endDate = new Date(decrypt(decrypted.endDate));
-    }
-    if (decrypted.currency && typeof decrypted.currency === 'string' && decrypted.currency.includes(':')) {
-      decrypted.currency = decrypt(decrypted.currency);
-    }
-    if (decrypted.projectType && typeof decrypted.projectType === 'string' && decrypted.projectType.includes(':')) {
-      decrypted.projectType = decrypt(decrypted.projectType);
-    }
-    if (decrypted.totalExpense && typeof decrypted.totalExpense === 'string' && decrypted.totalExpense.includes(':')) {
-      decrypted.totalExpense = parseFloat(decrypt(decrypted.totalExpense)) || 0;
-    }
-
-    // Decrypt activities and subactivities
+    // Manually decrypt nested activities and subactivities (hooks may not run for nested includes)
     if (decrypted.activities && Array.isArray(decrypted.activities)) {
-      decrypted.activities = decrypted.activities.map(activity => {
-        const decryptedActivity = { ...activity };
-        
-        if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
-          decryptedActivity.name = decrypt(decryptedActivity.name);
-        }
-        if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
-          decryptedActivity.description = decrypt(decryptedActivity.description);
-        }
-        if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
-          decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
-        }
-        if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
-          decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
-        }
-        
-        // Decrypt subActivities
-        if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
-          decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
-            const decryptedSubActivity = { ...subActivity };
-            
-            if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
-              decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
-            }
-            if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
-              decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
-            }
-            if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
-              decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
-            }
-            
-            return decryptedSubActivity;
-          });
-        }
-        
-        return decryptedActivity;
+      decrypted.activities.forEach(activity => {
+        decryptActivityData(activity);
       });
     }
 
@@ -289,19 +336,64 @@ const downloadActivityReport = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
 
-    // Validate projectId format
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid project ID format',
+    // Find project - can be by integer ID or projectId string
+    let project = null;
+    
+    const projectIdInt = parseInt(projectId);
+    if (!isNaN(projectIdInt) && projectIdInt > 0) {
+      project = await Project.findByPk(projectIdInt, {
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
       });
     }
-
-    // Get project
-    const project = await Project.findById(projectId)
-      .populate('programPersonnel', 'name email')
-      .populate('financePersonnel', 'name email')
-      .lean();
+    
+    if (!project) {
+      project = await Project.findOne({
+        where: { projectId: projectId },
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
+      });
+    }
 
     if (!project) {
       return res.status(404).json({
@@ -310,18 +402,28 @@ const downloadActivityReport = async (req, res) => {
       });
     }
 
-    // Decrypt project currency
-    let projectCurrency = project.currency;
-    if (projectCurrency && typeof projectCurrency === 'string' && projectCurrency.includes(':')) {
-      projectCurrency = decrypt(projectCurrency);
+    const projectData = project.toJSON();
+
+    // Manually decrypt nested activities and subactivities
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      projectData.activities.forEach(activity => {
+        decryptActivityData(activity);
+      });
     }
 
-    // Find activity
+    // Find activity - can be by integer ID or activityId string
     let activity = null;
-    if (project.activities && Array.isArray(project.activities)) {
-      activity = project.activities.find(
-        (act) => act._id?.toString() === activityId || act.activityId === activityId
-      );
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      const activityIdInt = parseInt(activityId);
+      if (!isNaN(activityIdInt) && activityIdInt > 0) {
+        activity = projectData.activities.find(
+          (act) => act.id === activityIdInt || act.activityId === activityId
+        );
+      } else {
+        activity = projectData.activities.find(
+          (act) => act.activityId === activityId
+        );
+      }
     }
 
     if (!activity) {
@@ -331,40 +433,8 @@ const downloadActivityReport = async (req, res) => {
       });
     }
 
-    // Decrypt activity fields
-    const decryptedActivity = { ...activity };
-    
-    if (decryptedActivity.name && typeof decryptedActivity.name === 'string' && decryptedActivity.name.includes(':')) {
-      decryptedActivity.name = decrypt(decryptedActivity.name);
-    }
-    if (decryptedActivity.description && typeof decryptedActivity.description === 'string' && decryptedActivity.description !== '' && decryptedActivity.description.includes(':')) {
-      decryptedActivity.description = decrypt(decryptedActivity.description);
-    }
-    if (decryptedActivity.budget && typeof decryptedActivity.budget === 'string' && decryptedActivity.budget.includes(':')) {
-      decryptedActivity.budget = parseFloat(decrypt(decryptedActivity.budget)) || 0;
-    }
-    if (decryptedActivity.expense && typeof decryptedActivity.expense === 'string' && decryptedActivity.expense.includes(':')) {
-      decryptedActivity.expense = parseFloat(decrypt(decryptedActivity.expense)) || 0;
-    }
-
-    // Decrypt subActivities
-    if (decryptedActivity.subActivities && Array.isArray(decryptedActivity.subActivities)) {
-      decryptedActivity.subActivities = decryptedActivity.subActivities.map(subActivity => {
-        const decryptedSubActivity = { ...subActivity };
-        
-        if (decryptedSubActivity.name && typeof decryptedSubActivity.name === 'string' && decryptedSubActivity.name.includes(':')) {
-          decryptedSubActivity.name = decrypt(decryptedSubActivity.name);
-        }
-        if (decryptedSubActivity.budget && typeof decryptedSubActivity.budget === 'string' && decryptedSubActivity.budget.includes(':')) {
-          decryptedSubActivity.budget = parseFloat(decrypt(decryptedSubActivity.budget)) || 0;
-        }
-        if (decryptedSubActivity.expense && typeof decryptedSubActivity.expense === 'string' && decryptedSubActivity.expense.includes(':')) {
-          decryptedSubActivity.expense = parseFloat(decrypt(decryptedSubActivity.expense)) || 0;
-        }
-        
-        return decryptedSubActivity;
-      });
-    }
+    // Activity is already decrypted by decryptActivityData above
+    const decryptedActivity = activity;
 
     // Calculate utilization
     const utilization = decryptedActivity.budget > 0 
@@ -389,14 +459,14 @@ const downloadActivityReport = async (req, res) => {
       ['Status', decryptedActivity.projectStatus || 'N/A'],
       ['', ''],
       ['Project Information', ''],
-      ['  Project ID', project.projectId || 'N/A'],
-      ['  Project Title', project.title || 'N/A'],
-      ['  Currency', projectCurrency || 'N/A'],
+      ['  Project ID', projectData.projectId || 'N/A'],
+      ['  Project Title', projectData.title || 'N/A'],
+      ['  Currency', projectData.currency || 'N/A'],
       ['', ''],
-      ['Budget', `${projectCurrency || ''} ${(decryptedActivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-      ['Expense', `${projectCurrency || ''} ${(decryptedActivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Budget', `${projectData.currency || ''} ${(decryptedActivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Expense', `${projectData.currency || ''} ${(decryptedActivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ['Utilization', `${utilization.toFixed(2)}%`],
-      ['Remaining Budget', `${projectCurrency || ''} ${Math.max((decryptedActivity.budget || 0) - (decryptedActivity.expense || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Remaining Budget', `${projectData.currency || ''} ${Math.max((decryptedActivity.budget || 0) - (decryptedActivity.expense || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ['Subactivities Count', decryptedActivity.subActivities?.length || 0],
     ];
 
@@ -449,8 +519,8 @@ const downloadActivityReport = async (req, res) => {
         subactivitiesSheet.addRow([
           subActivity.subactivityId || 'N/A',
           subActivity.name || 'N/A',
-          `${projectCurrency || ''} ${(subActivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-          `${projectCurrency || ''} ${(subActivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `${projectData.currency || ''} ${(subActivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `${projectData.currency || ''} ${(subActivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           `${subUtilization.toFixed(2)}%`
         ]);
       });
@@ -480,19 +550,64 @@ const downloadSubactivityReport = async (req, res) => {
   try {
     const { projectId, activityId, subactivityId } = req.params;
 
-    // Validate IDs
-    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid project ID format',
+    // Find project - can be by integer ID or projectId string
+    let project = null;
+    
+    const projectIdInt = parseInt(projectId);
+    if (!isNaN(projectIdInt) && projectIdInt > 0) {
+      project = await Project.findByPk(projectIdInt, {
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
       });
     }
-
-    // Get project
-    const project = await Project.findById(projectId)
-      .populate('programPersonnel', 'name email')
-      .populate('financePersonnel', 'name email')
-      .lean();
+    
+    if (!project) {
+      project = await Project.findOne({
+        where: { projectId: projectId },
+        include: [
+          {
+            model: User,
+            as: 'programPersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: User,
+            as: 'financePersonnel',
+            attributes: ['name', 'email'],
+          },
+          {
+            model: Activity,
+            as: 'activities',
+            include: [
+              {
+                model: SubActivity,
+                as: 'subActivities',
+              },
+            ],
+          },
+        ],
+      });
+    }
 
     if (!project) {
       return res.status(404).json({
@@ -501,18 +616,28 @@ const downloadSubactivityReport = async (req, res) => {
       });
     }
 
-    // Decrypt project currency
-    let projectCurrency = project.currency;
-    if (projectCurrency && typeof projectCurrency === 'string' && projectCurrency.includes(':')) {
-      projectCurrency = decrypt(projectCurrency);
+    const projectData = project.toJSON();
+
+    // Manually decrypt nested activities and subactivities
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      projectData.activities.forEach(activity => {
+        decryptActivityData(activity);
+      });
     }
 
-    // Find activity
+    // Find activity - can be by integer ID or activityId string
     let activity = null;
-    if (project.activities && Array.isArray(project.activities)) {
-      activity = project.activities.find(
-        (act) => act._id?.toString() === activityId || act.activityId === activityId
-      );
+    if (projectData.activities && Array.isArray(projectData.activities)) {
+      const activityIdInt = parseInt(activityId);
+      if (!isNaN(activityIdInt) && activityIdInt > 0) {
+        activity = projectData.activities.find(
+          (act) => act.id === activityIdInt || act.activityId === activityId
+        );
+      } else {
+        activity = projectData.activities.find(
+          (act) => act.activityId === activityId
+        );
+      }
     }
 
     if (!activity) {
@@ -522,18 +647,22 @@ const downloadSubactivityReport = async (req, res) => {
       });
     }
 
-    // Decrypt activity name for context
-    let activityName = activity.name;
-    if (activityName && typeof activityName === 'string' && activityName.includes(':')) {
-      activityName = decrypt(activityName);
-    }
+    // Activity is already decrypted by decryptActivityData above
+    const activityName = activity.name;
 
-    // Find subactivity
+    // Find subactivity - can be by integer ID or subactivityId string
     let subactivity = null;
     if (activity.subActivities && Array.isArray(activity.subActivities)) {
-      subactivity = activity.subActivities.find(
-        (subAct) => subAct._id?.toString() === subactivityId || subAct.subactivityId === subactivityId
-      );
+      const subactivityIdInt = parseInt(subactivityId);
+      if (!isNaN(subactivityIdInt) && subactivityIdInt > 0) {
+        subactivity = activity.subActivities.find(
+          (subAct) => subAct.id === subactivityIdInt || subAct.subactivityId === subactivityId
+        );
+      } else {
+        subactivity = activity.subActivities.find(
+          (subAct) => subAct.subactivityId === subactivityId
+        );
+      }
     }
 
     if (!subactivity) {
@@ -543,18 +672,8 @@ const downloadSubactivityReport = async (req, res) => {
       });
     }
 
-    // Decrypt subactivity fields
-    const decryptedSubactivity = { ...subactivity };
-    
-    if (decryptedSubactivity.name && typeof decryptedSubactivity.name === 'string' && decryptedSubactivity.name.includes(':')) {
-      decryptedSubactivity.name = decrypt(decryptedSubactivity.name);
-    }
-    if (decryptedSubactivity.budget && typeof decryptedSubactivity.budget === 'string' && decryptedSubactivity.budget.includes(':')) {
-      decryptedSubactivity.budget = parseFloat(decrypt(decryptedSubactivity.budget)) || 0;
-    }
-    if (decryptedSubactivity.expense && typeof decryptedSubactivity.expense === 'string' && decryptedSubactivity.expense.includes(':')) {
-      decryptedSubactivity.expense = parseFloat(decrypt(decryptedSubactivity.expense)) || 0;
-    }
+    // Subactivity is already decrypted by decryptActivityData above
+    const decryptedSubactivity = subactivity;
 
     // Calculate utilization
     const utilization = decryptedSubactivity.budget > 0 
@@ -577,18 +696,18 @@ const downloadSubactivityReport = async (req, res) => {
       ['Name', decryptedSubactivity.name || 'N/A'],
       ['', ''],
       ['Project Information', ''],
-      ['  Project ID', project.projectId || 'N/A'],
-      ['  Project Title', project.title || 'N/A'],
-      ['  Currency', projectCurrency || 'N/A'],
+      ['  Project ID', projectData.projectId || 'N/A'],
+      ['  Project Title', projectData.title || 'N/A'],
+      ['  Currency', projectData.currency || 'N/A'],
       ['', ''],
       ['Activity Information', ''],
       ['  Activity ID', activity.activityId || 'N/A'],
       ['  Activity Name', activityName || 'N/A'],
       ['', ''],
-      ['Budget', `${projectCurrency || ''} ${(decryptedSubactivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-      ['Expense', `${projectCurrency || ''} ${(decryptedSubactivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Budget', `${projectData.currency || ''} ${(decryptedSubactivity.budget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Expense', `${projectData.currency || ''} ${(decryptedSubactivity.expense || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ['Utilization', `${utilization.toFixed(2)}%`],
-      ['Remaining Budget', `${projectCurrency || ''} ${Math.max((decryptedSubactivity.budget || 0) - (decryptedSubactivity.expense || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ['Remaining Budget', `${projectData.currency || ''} ${Math.max((decryptedSubactivity.budget || 0) - (decryptedSubactivity.expense || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ];
 
     subactivitySheet.addRows(subactivityRows);
@@ -622,4 +741,3 @@ module.exports = {
   downloadActivityReport,
   downloadSubactivityReport,
 };
-

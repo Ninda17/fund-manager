@@ -1,625 +1,426 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 const { encrypt, decrypt } = require("../utils/encryption");
+const User = require("./userModel");
 
-const subActivitySchema = new mongoose.Schema({
-  subactivityId: { type: String, required: false },
-  name: { type: String, required: false },
-  budget: { 
-    type: Number, 
-    required: false, 
-    default: 0,
-    min: [0, "Budget cannot be negative"]
+const Project = sequelize.define(
+  "Project",
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    programPersonnelId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: User,
+        key: "id",
+      },
+      // Note: Relationships will be defined in models/index.js
+    },
+    projectId: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: false,
+      validate: {
+        notEmpty: {
+          msg: "Project ID is required",
+        },
+      },
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: {
+          msg: "Title is required",
+        },
+      },
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      // Will be encrypted in hooks (stored as encrypted string)
+    },
+    startDate: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      // Will be encrypted in hooks (stored as encrypted string, decrypted to Date when retrieved)
+    },
+    endDate: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      // Will be encrypted in hooks (stored as encrypted string, decrypted to Date when retrieved)
+    },
+    financePersonnelId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: User,
+        key: "id",
+      },
+    },
+    donorName: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      // Will be encrypted in hooks (stored as encrypted string)
+    },
+    amountDonated: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      // Will be encrypted in hooks (stored as encrypted string, decrypted to number when retrieved)
+      // Validation happens before encryption
+    },
+    currency: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      defaultValue: "USD",
+      // Will be encrypted in hooks (stored as encrypted string)
+    },
+    projectType: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      defaultValue: "Social Development Program",
+      // Will be encrypted in hooks (stored as encrypted string)
+    },
+    totalExpense: {
+      type: DataTypes.TEXT, // Store as TEXT since encrypted values are strings
+      allowNull: false,
+      defaultValue: "0",
+      // Will be encrypted in hooks (stored as encrypted string, decrypted to number when retrieved)
+      // Validation happens before encryption
+    },
+    projectStatus: {
+      type: DataTypes.ENUM("Not Started", "In Progress", "Completed"),
+      allowNull: false,
+      defaultValue: "Not Started",
+    },
+    // Note: activities[] will be in separate Activity table
+    // Note: documents[] will be in separate ProjectDocument table
   },
-  expense: { 
-    type: Number, 
-    default: 0,
-    min: [0, "Expense cannot be negative"]
+  {
+    tableName: "projects",
+    timestamps: true,
+    indexes: [
+      {
+        fields: ["projectId"],
+        unique: true,
+      },
+      {
+        fields: ["programPersonnelId"],
+      },
+      {
+        fields: ["financePersonnelId"],
+      },
+      {
+        fields: ["projectStatus"],
+      },
+    ],
+  }
+);
+
+// Helper function to encrypt field if not already encrypted
+const encryptField = (value, isNumber = false) => {
+  if (value === undefined || value === null || value === '') {
+    return value;
+  }
+  
+  // Check if already encrypted (contains ':')
+  if (typeof value === 'string' && value.includes(':')) {
+    return value;
+  }
+  
+  // Convert to string for encryption
+  let stringValue;
+  if (isNumber) {
+    const numValue = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      throw new Error(`Invalid ${isNumber ? 'number' : 'value'}`);
+    }
+    stringValue = numValue.toString();
+  } else if (value instanceof Date) {
+    stringValue = value.toISOString();
+  } else {
+    stringValue = value.toString();
+  }
+  
+  return encrypt(stringValue);
+};
+
+// Helper function to decrypt field
+const decryptField = (encryptedValue, returnType = 'string') => {
+  if (!encryptedValue || typeof encryptedValue !== 'string') {
+    return encryptedValue;
+  }
+  
+  // Check if encrypted (contains ':')
+  if (!encryptedValue.includes(':')) {
+    return encryptedValue;
+  }
+  
+  try {
+    const decrypted = decrypt(encryptedValue);
+    
+    if (returnType === 'number') {
+      return parseFloat(decrypted) || 0;
+    } else if (returnType === 'date') {
+      return new Date(decrypted);
+    }
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    return encryptedValue; // Return as-is if decryption fails
+  }
+};
+
+// Validate numeric fields before encryption
+Project.beforeValidate((project) => {
+  // Validate amountDonated (before encryption)
+  // If already encrypted (contains ':'), skip validation (it's already valid)
+  if (project.amountDonated !== undefined && project.amountDonated !== null) {
+    if (typeof project.amountDonated === 'string' && project.amountDonated.includes(':')) {
+      // Already encrypted, skip validation
+      return;
+    }
+    
+    const amount = typeof project.amountDonated === 'number' ? project.amountDonated : parseFloat(project.amountDonated);
+    
+    if (isNaN(amount) || amount < 0) {
+      throw new Error("Amount donated must be a non-negative number");
+    }
+  }
+  
+  // Validate totalExpense (before encryption)
+  // If already encrypted (contains ':'), skip validation (it's already valid)
+  if (project.totalExpense !== undefined && project.totalExpense !== null) {
+    if (typeof project.totalExpense === 'string' && project.totalExpense.includes(':')) {
+      // Already encrypted, skip validation
+      return;
+    }
+    
+    const expense = typeof project.totalExpense === 'number' ? project.totalExpense : parseFloat(project.totalExpense);
+    
+    if (isNaN(expense) || expense < 0) {
+      throw new Error("Total expense must be a non-negative number");
+    }
   }
 });
 
-const activitySchema = new mongoose.Schema({
-  activityId: { type: String, required: false },
-  name: { type: String, required: false },
-  description: { type: String, required: false },
-  budget: { 
-    type: Number, 
-    required: false, 
-    default: 0,
-    min: [0, "Budget cannot be negative"]
-  },
-  expense: { 
-    type: Number, 
-    default: 0,
-    min: [0, "Expense cannot be negative"]
-  },
-  projectStatus: {
-    type: String,
-    required: false,
-    default: "Not Started",
-    enum: ["Not Started", "In Progress", "Completed"]
-  },
-  subActivities: [subActivitySchema]
-});
-
-const projectSchema = new mongoose.Schema(
-  {
-    programPersonnel: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-    },
-    projectId: { type: String, required: true },
-    title: { type: String, required: true },
-    description: { 
-      type: String, 
-      required: false 
-    },
-
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
-    financePersonnel: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-    },
-    
-    donorName: { 
-      type: String, 
-      required: true 
-    },
-    amountDonated: { 
-      type: Number, 
-      required: true,
-      min: [0, "Amount donated cannot be negative"]
-    },
-    currency: {
-      type: String,
-      required: true,
-      default: "USD",
-      enum: ["USD", "EUR", "BTN"]
-    },
-    projectType: {
-      type: String,
-      required: true,
-      default: "Social Development Program",
-      enum: ["Social Development Program", "Economic Development Program", "Environmental and Climate Change Program", "Research Advocacy and Network Program"]
-    },
-    totalExpense: { 
-      type: Number, 
-      default: 0, 
-      min: [0, "Total expense cannot be negative"]
-    },
-    projectStatus: {
-      type: String,
-      required: false,
-      default: "Not Started",
-      enum: ["Not Started", "In Progress", "Completed"]
-    },
-    documents: [{
-      type: String, // Array of document URLs
-      required: false
-    }],
-    activities: [activitySchema]
-  },
-  { timestamps: true }
-);
-
 // Validate that financialPersonnel is a user with role "finance", email verified, and approved
-projectSchema.pre("save", async function (next) {
-  if (this.financePersonnel) {
-    const User = mongoose.model("User");
-    const user = await User.findById(this.financePersonnel);
+Project.beforeValidate(async (project) => {
+  if (project.financePersonnelId) {
+    const user = await User.findByPk(project.financePersonnelId);
     
     if (!user) {
-      return next(new Error("Financial personnel user not found"));
+      throw new Error("Financial personnel user not found");
     }
     
     if (user.role !== "finance") {
-      return next(new Error("Financial personnel must be a user with role 'finance'"));
+      throw new Error("Financial personnel must be a user with role 'finance'");
     }
     
     if (!user.isEmailVerified) {
-      return next(new Error("Financial personnel must have a verified email address"));
+      throw new Error("Financial personnel must have a verified email address");
     }
     
     if (user.isApproved !== "approved") {
-      return next(new Error("Financial personnel must be approved"));
+      throw new Error("Financial personnel must be approved");
     }
   }
-  next();
 });
 
 // Validate that programPersonnel is a user with role "program"
-projectSchema.pre("save", async function (next) {
-  if (this.programPersonnel) {
-    const User = mongoose.model("User");
-    const user = await User.findById(this.programPersonnel);
+Project.beforeValidate(async (project) => {
+  if (project.programPersonnelId) {
+    const user = await User.findByPk(project.programPersonnelId);
     
     if (!user) {
-      return next(new Error("Program personnel user not found"));
+      throw new Error("Program personnel user not found");
     }
     
     if (user.role !== "program") {
-      return next(new Error("Program personnel must be a user with role 'program'"));
+      throw new Error("Program personnel must be a user with role 'program'");
     }
   }
-  next();
 });
 
 // Validate that endDate is after startDate
-projectSchema.pre("save", function (next) {
-  if (this.startDate && this.endDate && this.endDate < this.startDate) {
-    return next(new Error("End date must be after start date"));
-  }
-  next();
-});
-
-
-// It calculates activity expenses from sub-activities and total expense from activities
-// Logic:
-// 1. If activity has subactivities: calculate expense from subactivity expenses
-// 2. If activity has no subactivities: use activity.expense directly (don't override)
-// 3. If project has activities: calculate totalExpense from activity expenses
-// 4. If project has no activities: use totalExpense directly (don't override)
-projectSchema.pre("save", function (next) {
-  if (this.activities && Array.isArray(this.activities) && this.activities.length > 0) {
-    this.activities.forEach(activity => {
-      // If activity has subactivities: calculate expense from subactivity expenses
-      if (activity.subActivities && Array.isArray(activity.subActivities) && activity.subActivities.length > 0) {
-        const calculatedExpense = activity.subActivities.reduce(
-          (sum, sa) => sum + (sa.expense || 0),
-          0
-        );
-        activity.expense = calculatedExpense;
-      }
-      // If activity has no subactivities: keep activity.expense as is (use directly if set)
-      // Don't override - let it use the value that was set directly
-    });
-
-    // Calculate total expense = sum of all activity expenses
-    const calculatedTotalExpense = this.activities.reduce(
-      (sum, act) => sum + (act.expense || 0),
-      0
-    );
-    this.totalExpense = calculatedTotalExpense;
-  } else {
-    // If project has no activities: keep totalExpense as is (use directly if set)
-    // Only set to 0 if it's undefined/null
-    if (this.totalExpense === undefined || this.totalExpense === null) {
-      this.totalExpense = 0;
+Project.beforeValidate((project) => {
+  if (project.startDate && project.endDate) {
+    const start = new Date(project.startDate);
+    const end = new Date(project.endDate);
+    
+    if (end < start) {
+      throw new Error("End date must be after start date");
     }
   }
-  next();
 });
 
 // Encrypt sensitive fields before saving
-projectSchema.pre("save", function (next) {
+Project.beforeCreate(async (project) => {
   // Encrypt donorName
-  if (this.donorName !== undefined && this.donorName !== null && this.donorName !== '') {
-    // Check if already encrypted (contains ':')
-    if (!this.donorName.includes(':')) {
-      this.donorName = encrypt(this.donorName);
-    }
+  if (project.donorName) {
+    project.donorName = encryptField(project.donorName);
   }
   
   // Encrypt description
-  if (this.description !== undefined && this.description !== null && this.description !== '') {
-    // Check if already encrypted
-    if (!this.description.includes(':')) {
-      this.description = encrypt(this.description);
-    }
+  if (project.description) {
+    project.description = encryptField(project.description);
   }
   
-  // Encrypt amountDonated
-  // Convert Number to String for encryption
-  if (this.amountDonated !== undefined && this.amountDonated !== null) {
-    // Check if already encrypted (if it's a string with ':')
-    const isEncrypted = typeof this.amountDonated === 'string' && this.amountDonated.includes(':');
-    
-    if (!isEncrypted) {
-      // Validate it's a number (should already be validated by schema)
-      const amount = typeof this.amountDonated === 'number' ? this.amountDonated : parseFloat(this.amountDonated);
-      if (isNaN(amount) || amount < 0) {
-        return next(new Error("Amount donated must be a non-negative number"));
-      }
-      // Convert number to string and encrypt
-      // Directly set in _doc to bypass Mongoose type casting
-      const encryptedValue = encrypt(amount.toString());
-      this._doc.amountDonated = encryptedValue;
-      this.markModified('amountDonated');
-    }
+  // Encrypt amountDonated (store as string)
+  if (project.amountDonated !== undefined && project.amountDonated !== null) {
+    project.amountDonated = encryptField(project.amountDonated, true);
   }
   
-  // Encrypt startDate
-  if (this.startDate !== undefined && this.startDate !== null) {
-    const isEncrypted = typeof this.startDate === 'string' && this.startDate.includes(':');
-    if (!isEncrypted) {
-      // Convert Date to ISO string and encrypt
-      const dateString = this.startDate instanceof Date ? this.startDate.toISOString() : new Date(this.startDate).toISOString();
-      const encryptedValue = encrypt(dateString);
-      this._doc.startDate = encryptedValue;
-      this.markModified('startDate');
-    }
+  // Encrypt startDate (store as string)
+  if (project.startDate) {
+    project.startDate = encryptField(project.startDate);
   }
   
-  // Encrypt endDate
-  if (this.endDate !== undefined && this.endDate !== null) {
-    const isEncrypted = typeof this.endDate === 'string' && this.endDate.includes(':');
-    if (!isEncrypted) {
-      // Convert Date to ISO string and encrypt
-      const dateString = this.endDate instanceof Date ? this.endDate.toISOString() : new Date(this.endDate).toISOString();
-      const encryptedValue = encrypt(dateString);
-      this._doc.endDate = encryptedValue;
-      this.markModified('endDate');
-    }
+  // Encrypt endDate (store as string)
+  if (project.endDate) {
+    project.endDate = encryptField(project.endDate);
   }
   
   // Encrypt currency
-  if (this.currency !== undefined && this.currency !== null && this.currency !== '') {
-    // Check if already encrypted
-    if (!this.currency.includes(':')) {
-      this.currency = encrypt(this.currency);
-    }
+  if (project.currency) {
+    project.currency = encryptField(project.currency);
   }
   
   // Encrypt projectType
-  if (this.projectType !== undefined && this.projectType !== null && this.projectType !== '') {
-    // Check if already encrypted
-    if (!this.projectType.includes(':')) {
-      this.projectType = encrypt(this.projectType);
-    }
+  if (project.projectType) {
+    project.projectType = encryptField(project.projectType);
   }
   
-  // Encrypt totalExpense
-  if (this.totalExpense !== undefined && this.totalExpense !== null) {
-    const isEncrypted = typeof this.totalExpense === 'string' && this.totalExpense.includes(':');
-    
-    if (!isEncrypted) {
-      const expense = typeof this.totalExpense === 'number' ? this.totalExpense : parseFloat(this.totalExpense);
-      if (isNaN(expense) || expense < 0) {
-        return next(new Error("Total expense must be a non-negative number"));
-      }
-      const encryptedValue = encrypt(expense.toString());
-      this._doc.totalExpense = encryptedValue;
-      this.markModified('totalExpense');
-    }
+  // Encrypt totalExpense (store as string)
+  if (project.totalExpense !== undefined && project.totalExpense !== null) {
+    project.totalExpense = encryptField(project.totalExpense, true);
+  }
+});
+
+// Also encrypt on update
+Project.beforeUpdate(async (project) => {
+  // Only encrypt if field was changed and not already encrypted
+  if (project.changed('donorName') && project.donorName && !project.donorName.includes(':')) {
+    project.donorName = encryptField(project.donorName);
   }
   
-  // Encrypt activity names, descriptions, budgets, and expenses
-  if (this.activities && Array.isArray(this.activities)) {
-    // Ensure _doc.activities exists
-    if (!this._doc) {
-      this._doc = {};
-    }
-    if (!this._doc.activities) {
-      this._doc.activities = [];
-    }
-    
-    // Convert to plain objects to avoid Mongoose type casting
-    const activitiesArray = this.activities.map((activity, index) => {
-      const encryptedActivity = activity.toObject ? activity.toObject() : { ...activity };
-      
-      // Encrypt activity name
-      if (encryptedActivity.name && typeof encryptedActivity.name === 'string' && !encryptedActivity.name.includes(':')) {
-        encryptedActivity.name = encrypt(encryptedActivity.name);
-      }
-      
-      // Encrypt activity description
-      if (encryptedActivity.description && typeof encryptedActivity.description === 'string' && encryptedActivity.description !== '' && !encryptedActivity.description.includes(':')) {
-        encryptedActivity.description = encrypt(encryptedActivity.description);
-      }
-      
-      // Encrypt activity budget
-      if (encryptedActivity.budget !== undefined && encryptedActivity.budget !== null) {
-        const isEncrypted = typeof encryptedActivity.budget === 'string' && encryptedActivity.budget.includes(':');
-        if (!isEncrypted) {
-          const budget = typeof encryptedActivity.budget === 'number' ? encryptedActivity.budget : parseFloat(encryptedActivity.budget);
-          if (isNaN(budget) || budget < 0) {
-            return next(new Error("Activity budget must be a non-negative number"));
-          }
-          const encryptedBudget = encrypt(budget.toString());
-          encryptedActivity.budget = encryptedBudget;
-          // Set in _doc to bypass Mongoose casting
-          if (!this._doc.activities[index]) {
-            this._doc.activities[index] = {};
-          }
-          this._doc.activities[index].budget = encryptedBudget;
-        }
-      }
-      
-      // Encrypt activity expense
-      if (encryptedActivity.expense !== undefined && encryptedActivity.expense !== null) {
-        const isEncrypted = typeof encryptedActivity.expense === 'string' && encryptedActivity.expense.includes(':');
-        if (!isEncrypted) {
-          const expense = typeof encryptedActivity.expense === 'number' ? encryptedActivity.expense : parseFloat(encryptedActivity.expense);
-          if (isNaN(expense) || expense < 0) {
-            return next(new Error("Activity expense must be a non-negative number"));
-          }
-          const encryptedExpense = encrypt(expense.toString());
-          encryptedActivity.expense = encryptedExpense;
-          // Set in _doc to bypass Mongoose casting
-          if (!this._doc.activities[index]) {
-            this._doc.activities[index] = {};
-          }
-          this._doc.activities[index].expense = encryptedExpense;
-        }
-      }
-      
-      // Encrypt sub-activity names, budgets, and expenses
-      if (encryptedActivity.subActivities && Array.isArray(encryptedActivity.subActivities)) {
-        if (!this._doc.activities[index]) {
-          this._doc.activities[index] = {};
-        }
-        if (!this._doc.activities[index].subActivities) {
-          this._doc.activities[index].subActivities = [];
-        }
-        
-        encryptedActivity.subActivities = encryptedActivity.subActivities.map((subActivity, subIndex) => {
-          const encryptedSubActivity = subActivity.toObject ? subActivity.toObject() : { ...subActivity };
-          
-          // Encrypt sub activity name
-          if (encryptedSubActivity.name && typeof encryptedSubActivity.name === 'string' && !encryptedSubActivity.name.includes(':')) {
-            encryptedSubActivity.name = encrypt(encryptedSubActivity.name);
-          }
-          
-          // Encrypt sub activity budget
-          if (encryptedSubActivity.budget !== undefined && encryptedSubActivity.budget !== null) {
-            const isEncrypted = typeof encryptedSubActivity.budget === 'string' && encryptedSubActivity.budget.includes(':');
-            if (!isEncrypted) {
-              const budget = typeof encryptedSubActivity.budget === 'number' ? encryptedSubActivity.budget : parseFloat(encryptedSubActivity.budget);
-              if (isNaN(budget) || budget < 0) {
-                return next(new Error("Sub-activity budget must be a non-negative number"));
-              }
-              const encryptedBudget = encrypt(budget.toString());
-              encryptedSubActivity.budget = encryptedBudget;
-              // Set in _doc to bypass Mongoose casting
-              if (!this._doc.activities[index].subActivities[subIndex]) {
-                this._doc.activities[index].subActivities[subIndex] = {};
-              }
-              this._doc.activities[index].subActivities[subIndex].budget = encryptedBudget;
-            }
-          }
-          
-          // Encrypt sub activity expense
-          if (encryptedSubActivity.expense !== undefined && encryptedSubActivity.expense !== null) {
-            const isEncrypted = typeof encryptedSubActivity.expense === 'string' && encryptedSubActivity.expense.includes(':');
-            if (!isEncrypted) {
-              const expense = typeof encryptedSubActivity.expense === 'number' ? encryptedSubActivity.expense : parseFloat(encryptedSubActivity.expense);
-              if (isNaN(expense) || expense < 0) {
-                return next(new Error("Sub-activity expense must be a non-negative number"));
-              }
-              const encryptedExpense = encrypt(expense.toString());
-              encryptedSubActivity.expense = encryptedExpense;
-              // Set in _doc to bypass Mongoose casting
-              if (!this._doc.activities[index].subActivities[subIndex]) {
-                this._doc.activities[index].subActivities[subIndex] = {};
-              }
-              this._doc.activities[index].subActivities[subIndex].expense = encryptedExpense;
-            }
-          }
-          
-          return encryptedSubActivity;
-        });
-      }
-      
-      return encryptedActivity;
-    });
-    
-    // Set the encrypted activities array and mark as modified
-    this.activities = activitiesArray;
-    // Also set in _doc to ensure Mongoose uses the encrypted values
-    this._doc.activities = activitiesArray;
-    this.markModified('activities');
+  if (project.changed('description') && project.description && !project.description.includes(':')) {
+    project.description = encryptField(project.description);
   }
   
-  next();
+  if (project.changed('amountDonated') && project.amountDonated && typeof project.amountDonated !== 'string') {
+    project.amountDonated = encryptField(project.amountDonated, true);
+  }
+  
+  if (project.changed('startDate') && project.startDate && !(typeof project.startDate === 'string' && project.startDate.includes(':'))) {
+    project.startDate = encryptField(project.startDate);
+  }
+  
+  if (project.changed('endDate') && project.endDate && !(typeof project.endDate === 'string' && project.endDate.includes(':'))) {
+    project.endDate = encryptField(project.endDate);
+  }
+  
+  if (project.changed('currency') && project.currency && !project.currency.includes(':')) {
+    project.currency = encryptField(project.currency);
+  }
+  
+  if (project.changed('projectType') && project.projectType && !project.projectType.includes(':')) {
+    project.projectType = encryptField(project.projectType);
+  }
+  
+  if (project.changed('totalExpense') && project.totalExpense && typeof project.totalExpense !== 'string') {
+    project.totalExpense = encryptField(project.totalExpense, true);
+  }
 });
 
 // Decrypt sensitive fields after retrieving
-const decryptProject = function(doc, plainDoc = null) {
-  if (!doc) return doc;
+Project.afterFind((projects) => {
+  if (!projects) return;
   
-  // Use plainDoc if provided (from toObject), otherwise try to get raw values
-  const rawDoc = plainDoc || doc._doc || doc;
-  
-  // Decrypt donorName
-  if (doc.donorName && typeof doc.donorName === 'string' && doc.donorName.includes(':')) {
-    doc.donorName = decrypt(doc.donorName);
-  }
-  
-  // Decrypt description
-  if (doc.description && typeof doc.description === 'string' && doc.description !== '' && doc.description.includes(':')) {
-    doc.description = decrypt(doc.description);
-  }
-  
-  // Decrypt amountDonated (decrypt string, convert back to number)
-  // Check raw document value first, as Mongoose may have tried to cast it
-  const rawAmountDonated = rawDoc.amountDonated;
-  if (rawAmountDonated !== undefined && rawAmountDonated !== null) {
-    if (typeof rawAmountDonated === 'string' && rawAmountDonated.includes(':')) {
-      // Decrypt the encrypted string
-      const decrypted = decrypt(rawAmountDonated);
-      // Convert back to Number
-      doc.amountDonated = parseFloat(decrypted) || 0;
-    } else if (typeof doc.amountDonated === 'number') {
-      // If doc.amountDonated is a number but raw is encrypted string, decrypt it
-      if (typeof rawAmountDonated === 'string' && rawAmountDonated.includes(':')) {
-        const decrypted = decrypt(rawAmountDonated);
-        doc.amountDonated = parseFloat(decrypted) || 0;
-      }
-      // Otherwise keep the number (shouldn't happen if encrypted, but handle it)
+  const decryptProject = (project) => {
+    if (!project) return;
+    
+    // Decrypt donorName
+    if (project.donorName) {
+      project.donorName = decryptField(project.donorName);
     }
-  }
-  
-  // Decrypt startDate
-  // Check raw document value first, as Mongoose may have tried to cast it to Date
-  const rawStartDate = rawDoc.startDate;
-  if (rawStartDate !== undefined && rawStartDate !== null) {
-    if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
-      const decrypted = decrypt(rawStartDate);
-      doc.startDate = new Date(decrypted);
-    } else if (doc.startDate instanceof Date) {
-      // If doc.startDate is a Date but raw is encrypted string, decrypt it
-      if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
-        const decrypted = decrypt(rawStartDate);
-        doc.startDate = new Date(decrypted);
-      } else if (isNaN(doc.startDate.getTime())) {
-        // Invalid date - might be because casting failed, try raw value
-        if (typeof rawStartDate === 'string' && rawStartDate.includes(':')) {
-          const decrypted = decrypt(rawStartDate);
-          doc.startDate = new Date(decrypted);
-        }
-      }
-      // Otherwise keep the date (shouldn't happen if encrypted, but handle it)
+    
+    // Decrypt description
+    if (project.description) {
+      project.description = decryptField(project.description);
     }
-  }
-  
-  // Decrypt endDate
-  // Check raw document value first, as Mongoose may have tried to cast it to Date
-  const rawEndDate = rawDoc.endDate;
-  if (rawEndDate !== undefined && rawEndDate !== null) {
-    if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
-      const decrypted = decrypt(rawEndDate);
-      doc.endDate = new Date(decrypted);
-    } else if (doc.endDate instanceof Date) {
-      // If doc.endDate is a Date but raw is encrypted string, decrypt it
-      if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
-        const decrypted = decrypt(rawEndDate);
-        doc.endDate = new Date(decrypted);
-      } else if (isNaN(doc.endDate.getTime())) {
-        // Invalid date - might be because casting failed, try raw value
-        if (typeof rawEndDate === 'string' && rawEndDate.includes(':')) {
-          const decrypted = decrypt(rawEndDate);
-          doc.endDate = new Date(decrypted);
-        }
-      }
-      // Otherwise keep the date (shouldn't happen if encrypted, but handle it)
+    
+    // Decrypt amountDonated
+    if (project.amountDonated) {
+      project.amountDonated = decryptField(project.amountDonated, 'number');
     }
-  }
-  
-  // Decrypt currency
-  if (doc.currency && typeof doc.currency === 'string' && doc.currency.includes(':')) {
-    doc.currency = decrypt(doc.currency);
-  }
-  
-  // Decrypt projectType
-  if (doc.projectType && typeof doc.projectType === 'string' && doc.projectType.includes(':')) {
-    doc.projectType = decrypt(doc.projectType);
-  }
-  
-  // Decrypt totalExpense
-  const rawTotalExpense = rawDoc.totalExpense;
-  if (rawTotalExpense !== undefined && rawTotalExpense !== null) {
-    if (typeof rawTotalExpense === 'string' && rawTotalExpense.includes(':')) {
-      const decrypted = decrypt(rawTotalExpense);
-      doc.totalExpense = parseFloat(decrypted) || 0;
-    } else if (typeof doc.totalExpense === 'number') {
-      if (typeof rawTotalExpense === 'string' && rawTotalExpense.includes(':')) {
-        const decrypted = decrypt(rawTotalExpense);
-        doc.totalExpense = parseFloat(decrypted) || 0;
-      }
+    
+    // Decrypt startDate
+    if (project.startDate) {
+      project.startDate = decryptField(project.startDate, 'date');
     }
-  }
+    
+    // Decrypt endDate
+    if (project.endDate) {
+      project.endDate = decryptField(project.endDate, 'date');
+    }
+    
+    // Decrypt currency
+    if (project.currency) {
+      project.currency = decryptField(project.currency);
+    }
+    
+    // Decrypt projectType
+    if (project.projectType) {
+      project.projectType = decryptField(project.projectType);
+    }
+    
+    // Decrypt totalExpense
+    if (project.totalExpense) {
+      project.totalExpense = decryptField(project.totalExpense, 'number');
+    }
+    
+    return project;
+  };
   
-  // Decrypt activity names, descriptions, budgets, and expenses
-  if (doc.activities && Array.isArray(doc.activities)) {
-    doc.activities = doc.activities.map(activity => {
-      const decryptedActivity = { ...activity };
-      
-      // Decrypt activity name
-      if (activity.name && typeof activity.name === 'string' && activity.name.includes(':')) {
-        decryptedActivity.name = decrypt(activity.name);
-      }
-      
-      // Decrypt activity description
-      if (activity.description && typeof activity.description === 'string' && activity.description !== '' && activity.description.includes(':')) {
-        decryptedActivity.description = decrypt(activity.description);
-      }
-      
-      // Decrypt activity budget
-      if (activity.budget !== undefined && activity.budget !== null) {
-        if (typeof activity.budget === 'string' && activity.budget.includes(':')) {
-          const decrypted = decrypt(activity.budget);
-          decryptedActivity.budget = parseFloat(decrypted) || 0;
-        } else if (typeof activity.budget === 'number') {
-          // Keep the number if not encrypted
-          decryptedActivity.budget = activity.budget;
-        }
-      }
-      
-      // Decrypt activity expense
-      if (activity.expense !== undefined && activity.expense !== null) {
-        if (typeof activity.expense === 'string' && activity.expense.includes(':')) {
-          const decrypted = decrypt(activity.expense);
-          decryptedActivity.expense = parseFloat(decrypted) || 0;
-        } else if (typeof activity.expense === 'number') {
-          // Keep the number if not encrypted
-          decryptedActivity.expense = activity.expense;
-        }
-      }
-      
-      // Decrypt sub-activity names, budgets, and expenses
-      if (activity.subActivities && Array.isArray(activity.subActivities)) {
-        decryptedActivity.subActivities = activity.subActivities.map(subActivity => {
-          const decryptedSubActivity = { ...subActivity };
-          
-          // Decrypt sub activity name
-          if (subActivity.name && typeof subActivity.name === 'string' && subActivity.name.includes(':')) {
-            decryptedSubActivity.name = decrypt(subActivity.name);
-          }
-          
-          // Decrypt sub activity budget
-          if (subActivity.budget !== undefined && subActivity.budget !== null) {
-            if (typeof subActivity.budget === 'string' && subActivity.budget.includes(':')) {
-              const decrypted = decrypt(subActivity.budget);
-              decryptedSubActivity.budget = parseFloat(decrypted) || 0;
-            } else if (typeof subActivity.budget === 'number') {
-              // Keep the number if not encrypted
-              decryptedSubActivity.budget = subActivity.budget;
-            }
-          }
-          
-          // Decrypt sub activity expense
-          if (subActivity.expense !== undefined && subActivity.expense !== null) {
-            if (typeof subActivity.expense === 'string' && subActivity.expense.includes(':')) {
-              const decrypted = decrypt(subActivity.expense);
-              decryptedSubActivity.expense = parseFloat(decrypted) || 0;
-            } else if (typeof subActivity.expense === 'number') {
-              // Keep the number if not encrypted
-              decryptedSubActivity.expense = subActivity.expense;
-            }
-          }
-          
-          return decryptedSubActivity;
-        });
-      }
-      
-      return decryptedActivity;
-    });
-  }
-  
-  return doc;
-};
-
-// Apply decryption to various query methods
-projectSchema.post(['find', 'findOne', 'findOneAndUpdate', 'findOneAndDelete'], function(docs) {
-  if (!docs) return;
-  
-  if (Array.isArray(docs)) {
-    docs.forEach(doc => {
-      // Convert to plain object to access raw values, then decrypt
-      const plainDoc = doc.toObject ? doc.toObject({ getters: false }) : doc;
-      decryptProject(doc, plainDoc);
-    });
+  if (Array.isArray(projects)) {
+    projects.forEach(decryptProject);
   } else {
-    const plainDoc = docs.toObject ? docs.toObject({ getters: false }) : docs;
-    decryptProject(docs, plainDoc);
+    decryptProject(projects);
   }
 });
 
-projectSchema.post('save', function(doc) {
-  const plainDoc = doc.toObject ? doc.toObject({ getters: false }) : doc;
-  decryptProject(doc, plainDoc);
+// Also decrypt after create/update
+Project.afterCreate((project) => {
+  // Decrypt fields
+  if (project.donorName) project.donorName = decryptField(project.donorName);
+  if (project.description) project.description = decryptField(project.description);
+  if (project.amountDonated) project.amountDonated = decryptField(project.amountDonated, 'number');
+  if (project.startDate) project.startDate = decryptField(project.startDate, 'date');
+  if (project.endDate) project.endDate = decryptField(project.endDate, 'date');
+  if (project.currency) project.currency = decryptField(project.currency);
+  if (project.projectType) project.projectType = decryptField(project.projectType);
+  if (project.totalExpense) project.totalExpense = decryptField(project.totalExpense, 'number');
 });
 
-module.exports = mongoose.model("Project", projectSchema);
+Project.afterUpdate((project) => {
+  // Decrypt fields
+  if (project.donorName) project.donorName = decryptField(project.donorName);
+  if (project.description) project.description = decryptField(project.description);
+  if (project.amountDonated) project.amountDonated = decryptField(project.amountDonated, 'number');
+  if (project.startDate) project.startDate = decryptField(project.startDate, 'date');
+  if (project.endDate) project.endDate = decryptField(project.endDate, 'date');
+  if (project.currency) project.currency = decryptField(project.currency);
+  if (project.projectType) project.projectType = decryptField(project.projectType);
+  if (project.totalExpense) project.totalExpense = decryptField(project.totalExpense, 'number');
+});
+
+// Note: Auto-calculation of expenses from activities will be handled in Activity/SubActivity models
+// or via service layer when we create those models
+
+module.exports = Project;

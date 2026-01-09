@@ -614,7 +614,7 @@ const ProjectDetails = () => {
                       <tr 
                         key={index} 
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/program/projects/${id}/activities/${activity._id}`)}
+                        onClick={() => navigate(`/program/projects/${id}/activities/${activity.id || activity._id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-900">{activity.activityId}</span>
@@ -678,7 +678,7 @@ const ProjectDetails = () => {
                   <div 
                     key={index} 
                     className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => navigate(`/program/projects/${id}/activities/${activity._id}`)}
+                    onClick={() => navigate(`/program/projects/${id}/activities/${activity.id || activity._id}`)}
                   >
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">

@@ -1,80 +1,144 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const userSchema = new mongoose.Schema(
+const User = sequelize.define(
+  "User",
   {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     name: {
-      type: String,
-      required: [true, "Name is required"],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: {
+          msg: "Name is required",
+        },
+      },
     },
     email: {
-      type: String,
-      required: [true, "Email is required"],
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
-      lowercase: true,
-      trim: true,
+      validate: {
+        isEmail: {
+          msg: "Please provide a valid email",
+        },
+        notEmpty: {
+          msg: "Email is required",
+        },
+      },
     },
     password: {
-      type: String,
-      required: [true, "Password is required"],
-      minlength: [6, "Password must be at least 6 characters long"],
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        len: {
+          args: [6, Infinity],
+          msg: "Password must be at least 6 characters long",
+        },
+        notEmpty: {
+          msg: "Password is required",
+        },
+      },
     },
     profileImageUrl: {
-      type: String,
-      default: null
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
     },
     role: {
-      type: String,
-      enum: ["admin", "finance", "program"],
-      default: "program",
+      type: DataTypes.ENUM("admin", "finance", "program"),
+      allowNull: false,
+      defaultValue: "program",
+      validate: {
+        isIn: {
+          args: [["admin", "finance", "program"]],
+          msg: "Role must be admin, finance, or program",
+        },
+      },
     },
     isApproved: {
-      type: String,
-      enum: ["approved", "pending", "rejected"],
-      default: "pending",
+      type: DataTypes.ENUM("approved", "pending", "rejected"),
+      allowNull: false,
+      defaultValue: "pending",
+      validate: {
+        isIn: {
+          args: [["approved", "pending", "rejected"]],
+          msg: "isApproved must be approved, pending, or rejected",
+        },
+      },
     },
     isEmailVerified: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
     emailVerificationToken: {
-      type: String,
-      default: null,
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
     },
     emailVerificationExpires: {
-      type: Date,
-      default: null,
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
     },
     deleteAfter: {
-      type: Date,
-      default: null,
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+      // Note: TTL index functionality will be handled by cleanup job (Step 7)
     },
   },
-  { timestamps: true }
+  {
+    tableName: "users",
+    timestamps: true, // Sequelize automatically adds createdAt and updatedAt
+    indexes: [
+      {
+        fields: ["email"],
+        unique: true,
+      },
+      {
+        fields: ["deleteAfter"],
+      },
+      {
+        fields: ["role"],
+      },
+    ],
+  }
 );
 
-// TTL Index for automatic cleanup of unverified users (7 days)
-// MongoDB will automatically delete documents when deleteAfter date passes
-userSchema.index({ deleteAfter: 1 }, { expireAfterSeconds: 0 });
-
-// ✅ Ensure only one admin exists
-userSchema.pre("save", async function (next) {
-  if (this.role === "admin") {
-    const existingAdmin = await mongoose.model("User").findOne({ role: "admin" });
-    if (existingAdmin && existingAdmin._id.toString() !== this._id.toString()) {
-      const err = new Error("Only one admin account is allowed");
-      return next(err);
+// ✅ Ensure only one admin exists (Sequelize hook)
+User.beforeCreate(async (user) => {
+  if (user.role === "admin") {
+    const existingAdmin = await User.findOne({ where: { role: "admin" } });
+    if (existingAdmin) {
+      throw new Error("Only one admin account is allowed");
     }
-    this.isApproved = "approved"; // Auto-approve admin
-    this.isEmailVerified = true; // Auto-verify admin email
-    this.deleteAfter = null; // Never delete admin accounts
+    // Auto-approve admin
+    user.isApproved = "approved";
+    user.isEmailVerified = true;
+    user.deleteAfter = null; // Never delete admin accounts
   }
-  next();
 });
 
-const User = mongoose.model("User", userSchema);
+// Also check on update (in case someone tries to change role to admin)
+User.beforeUpdate(async (user) => {
+  if (user.role === "admin" && user.changed("role")) {
+    const existingAdmin = await User.findOne({
+      where: { role: "admin" },
+    });
+    if (existingAdmin && existingAdmin.id !== user.id) {
+      throw new Error("Only one admin account is allowed");
+    }
+    // Auto-approve admin
+    user.isApproved = "approved";
+    user.isEmailVerified = true;
+    user.deleteAfter = null;
+  }
+});
+
 module.exports = User;
