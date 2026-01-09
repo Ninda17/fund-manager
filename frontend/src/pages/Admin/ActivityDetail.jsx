@@ -161,7 +161,7 @@ const ActivityDetail = () => {
     if (!subActivity || !subActivity.budget || subActivity.budget === 0)
       return 0;
     const expense = subActivity.expense || 0;
-    return Math.min((expense / subActivity.budget) * 100, 100);
+    return Math.min((expense / subActivity.budget) * 100);
   };
 
   const getProgressBadgeStyle = (status) => {

@@ -126,7 +126,7 @@ const ProjectDetails = () => {
   const calculateActivityUtilization = (activity) => {
     if (!activity || !activity.budget || activity.budget === 0) return 0
     const expense = activity.expense || 0
-    return Math.min((expense / activity.budget) * 100, 100)
+    return Math.min((expense / activity.budget) * 100)
   }
 
   const getProgressBadgeStyle = (status) => {
