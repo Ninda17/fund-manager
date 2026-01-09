@@ -214,11 +214,17 @@ const ActivityDetails = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading activity details...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading activity details...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
+
 
   if (error) {
     return (
