@@ -1,0 +1,106 @@
+# ===============================
+# PIPELINE STAGES
+# ===============================
+stages:
+  - install
+  - lint
+  - test
+
+# ===============================
+# GLOBAL VARIABLES
+# ===============================
+variables:
+  NODE_VERSION: "20"
+  MONGODB_VERSION: "7.0"
+
+# ===============================
+# DEFAULT JOB CONFIG
+# ===============================
+default:
+  image: node:${NODE_VERSION}-alpine
+  before_script:
+    - apk add --no-cache git
+    - node --version
+    - npm --version
+
+# ===============================
+# INSTALL STAGE
+# ===============================
+install_backend:
+  stage: install
+  script:
+    - echo "Installing backend dependencies..."
+    - cd backend
+    - npm ci
+    - echo "Backend dependencies installed successfully"
+  artifacts:
+    paths:
+      - backend/node_modules/
+    expire_in: 1 hour
+
+install_frontend:
+  stage: install
+  script:
+    - echo "Installing frontend dependencies..."
+    - cd frontend
+    - npm ci
+    - echo "Frontend dependencies installed successfully"
+  artifacts:
+    paths:
+      - frontend/node_modules/
+    expire_in: 1 hour
+
+# ===============================
+# LINT STAGE
+# ===============================
+lint_backend:
+  stage: lint
+  dependencies:
+    - install_backend
+  script:
+    - echo "Running ESLint for backend..."
+    - cd backend
+    - npm run lint -- --max-warnings=0 || (echo "❌ Backend linting FAILED - Pipeline will be blocked" && exit 1)
+    - echo "✅ Backend linting passed - No errors or warnings"
+  allow_failure: false # Pipeline will FAIL if linting fails (not just alert)
+
+lint_frontend:
+  stage: lint
+  dependencies:
+    - install_frontend
+  script:
+    - echo "Running ESLint for frontend..."
+    - cd frontend
+    - npm run lint -- --max-warnings=0 || (echo "❌ Frontend linting FAILED - Pipeline will be blocked" && exit 1)
+    - echo "✅ Frontend linting passed - No errors or warnings"
+  allow_failure: false # Pipeline will FAIL if linting fails (not just alert)
+
+# ===============================
+# TEST STAGE – BACKEND AUDIT
+# ===============================
+test_backend_audit:
+  stage: test
+  dependencies:
+    - install_backend
+  script:
+    - echo "Running npm audit for backend..."
+    - cd backend
+    - npm audit
+    - echo "Fixing vulnerabilities..."
+    - npm audit fix --force
+    - echo "Backend audit fix completed"
+
+# ===============================
+# TEST STAGE – FRONTEND AUDIT
+# ===============================
+test_frontend_audit:
+  stage: test
+  dependencies:
+    - install_frontend
+  script:
+    - echo "Running npm audit for frontend..."
+    - cd frontend
+    - npm audit
+    - echo "Fixing vulnerabilities..."
+    - npm audit fix --force
+    - echo "Frontend audit fix completed"

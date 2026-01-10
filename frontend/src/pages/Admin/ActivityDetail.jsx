@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/Layout/DashboardLayout";
 import axiosInstance from "../../utils/axiosInstance";
@@ -14,11 +14,58 @@ const ActivityDetail = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredSubActivities, setFilteredSubActivities] = useState([]);
 
+  const fetchActivityDetails = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // Use the admin API endpoint
+      const response = await axiosInstance.get(
+        API_PATHS.ADMIN.ACTIVITY_BY_ID(projectId, activityId)
+      );
+
+      console.log("API Response:", response.data); // For debugging
+
+      if (response.data.success) {
+        // Check the response structure
+        const responseData = response.data;
+
+        // Handle different response structures
+        if (responseData.data && responseData.data.activity) {
+          // Structure: { success: true, data: { activity: {...}, project: {...} } }
+          setActivity(responseData.data.activity);
+          setProject(responseData.data.project);
+        } else if (responseData.activity) {
+          // Structure: { success: true, activity: {...}, project: {...} }
+          setActivity(responseData.activity);
+          setProject(responseData.project);
+        } else if (responseData.data) {
+          // Structure: { success: true, data: {...} } where data is the activity
+          setActivity(responseData.data);
+        } else {
+          // Structure: { success: true, ...activityProps }
+          setActivity(responseData);
+        }
+      } else {
+        throw new Error(response.data.message || "Failed to load activity");
+      }
+    } catch (error) {
+      console.error("Error fetching activity details:", error);
+      setError(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to load activity details. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, activityId]);
+
   useEffect(() => {
     if (activityId) {
       fetchActivityDetails();
     }
-  }, [activityId]);
+  }, [activityId, fetchActivityDetails]);
 
   // Filter sub-activities based on search query
   useEffect(() => {
@@ -78,53 +125,6 @@ const ActivityDetail = () => {
 
     setFilteredSubActivities(filtered);
   }, [searchQuery, activity, project]);
-
-  const fetchActivityDetails = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      // Use the admin API endpoint
-      const response = await axiosInstance.get(
-        API_PATHS.ADMIN.ACTIVITY_BY_ID(projectId, activityId)
-      );
-
-      console.log("API Response:", response.data); // For debugging
-
-      if (response.data.success) {
-        // Check the response structure
-        const responseData = response.data;
-
-        // Handle different response structures
-        if (responseData.data && responseData.data.activity) {
-          // Structure: { success: true, data: { activity: {...}, project: {...} } }
-          setActivity(responseData.data.activity);
-          setProject(responseData.data.project);
-        } else if (responseData.activity) {
-          // Structure: { success: true, activity: {...}, project: {...} }
-          setActivity(responseData.activity);
-          setProject(responseData.project);
-        } else if (responseData.data) {
-          // Structure: { success: true, data: {...} } where data is the activity
-          setActivity(responseData.data);
-        } else {
-          // Structure: { success: true, ...activityProps }
-          setActivity(responseData);
-        }
-      } else {
-        throw new Error(response.data.message || "Failed to load activity");
-      }
-    } catch (error) {
-      console.error("Error fetching activity details:", error);
-      setError(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to load activity details. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatCurrency = (amount, currency) => {
     if (amount === null || amount === undefined) return "N/A";

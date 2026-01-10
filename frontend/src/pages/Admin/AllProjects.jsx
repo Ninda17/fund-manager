@@ -79,8 +79,8 @@ const MyProjects = () => {
               .toLowerCase();
             startDateDay = startDate.getDate().toString();
           }
-        } catch (e) {
-          e;
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 
@@ -95,8 +95,8 @@ const MyProjects = () => {
               .toLowerCase();
             endDateDay = endDate.getDate().toString();
           }
-        } catch (e) {
-          e;
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
@@ -34,12 +34,7 @@ const ReallocationRequests = () => {
   const [selectedSourceActivity, setSelectedSourceActivity] = useState(null)
   const [_selectedDestinationActivity, setSelectedDestinationActivity] = useState(null)
 
-  useEffect(() => {
-    fetchRequests()
-    fetchProjects()
-  }, [])
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       setLoading(true)
       setError('')
@@ -59,9 +54,9 @@ const ReallocationRequests = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter])
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const response = await axiosInstance.get(API_PATHS.PROGRAM.GET_PROJECTS)
       if (response.data.success) {
@@ -70,7 +65,12 @@ const ReallocationRequests = () => {
     } catch (error) {
       console.error('Error fetching projects:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchRequests()
+    fetchProjects()
+  }, [fetchRequests, fetchProjects])
 
   useEffect(() => {
     let filtered = [...allRequests]

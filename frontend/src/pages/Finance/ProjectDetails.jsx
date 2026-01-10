@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/Layout/DashboardLayout'
 import axiosInstance from '../../utils/axiosInstance'
@@ -13,11 +13,27 @@ const ProjectDetails = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredActivities, setFilteredActivities] = useState([])
 
+  const fetchProjectDetails = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await axiosInstance.get(API_PATHS.FINANCE.PROJECT_BY_ID(id))
+      if (response.data.success) {
+        setProject(response.data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error)
+      setError(error.response?.data?.message || 'Failed to load project details. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
   useEffect(() => {
     if (id) {
       fetchProjectDetails()
     }
-  }, [id])
+  }, [id, fetchProjectDetails])
 
   // Filter activities based on search query
   useEffect(() => {
@@ -66,22 +82,6 @@ const ProjectDetails = () => {
 
     setFilteredActivities(filtered)
   }, [searchQuery, project])
-
-  const fetchProjectDetails = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const response = await axiosInstance.get(API_PATHS.FINANCE.GET_PROJECT_BY_ID(id))
-      if (response.data.success) {
-        setProject(response.data.data)
-      }
-    } catch (error) {
-      console.error('Error fetching project details:', error)
-      setError(error.response?.data?.message || 'Failed to load project details. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'

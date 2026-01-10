@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../components/Layout/DashboardLayout';
 import axiosInstance from '../../utils/axiosInstance';
 import { API_PATHS } from '../../utils/apiPaths';
@@ -16,11 +16,7 @@ const Reports = () => {
   const [downloading, setDownloading] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -50,7 +46,11 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const fetchProjectDetails = async (projectId) => {
     // If already fetched, don't fetch again
@@ -243,8 +243,8 @@ const Reports = () => {
             startDateMonth = startDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
             startDateDay = startDate.getDate().toString()
           }
-        } catch (e) {
-          e
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 
@@ -257,8 +257,8 @@ const Reports = () => {
             endDateMonth = endDate.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
             endDateDay = endDate.getDate().toString()
           }
-        } catch (e) {
-          e
+        } catch (_e) {
+          // Silently ignore date parsing errors
         }
       }
 

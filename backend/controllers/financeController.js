@@ -1,6 +1,5 @@
 const { Project, ReallocationRequest, Activity, SubActivity, ProjectDocument, User, sequelize } = require("../models");
 const { Op } = require("sequelize");
-const path = require("path");
 const logActivity = require("../utils/logActivity");
 const { decrypt } = require("../utils/encryption");
 
