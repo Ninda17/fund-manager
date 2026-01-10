@@ -23,6 +23,11 @@ const EditProject = () => {
   const [projectStatus, setProjectStatus] = useState('Not Started')
   const [activities, setActivities] = useState([])
   
+  // Documents state
+  const [existingDocuments, setExistingDocuments] = useState([]) // Array of document URLs
+  const [newDocuments, setNewDocuments] = useState([]) // Array of File objects to upload
+  const [uploadingDocs, setUploadingDocs] = useState(false)
+  
   // Finance users list
   const [financeUsers, setFinanceUsers] = useState([])
   const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(true)
@@ -64,6 +69,13 @@ const EditProject = () => {
           setCurrency(project.currency || 'USD')
           setProjectType(project.projectType || 'Education')
           setProjectStatus(project.projectStatus || 'Not Started')
+          
+          // Set existing documents
+          if (project.documents && Array.isArray(project.documents)) {
+            setExistingDocuments(project.documents.filter(url => url && url.trim()))
+          } else {
+            setExistingDocuments([])
+          }
           
           // Set activities with proper structure
           if (project.activities && Array.isArray(project.activities)) {
@@ -156,6 +168,93 @@ const EditProject = () => {
     updated[activityIndex].subActivities[subIndex][field] = value
     setActivities(updated)
   }
+
+  // Handle document file selection
+  const handleDocumentChange = (e) => {
+    const files = Array.from(e.target.files)
+    
+    // Validate file types
+    const validTypes = [
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-word.document.macroEnabled.12',
+      'application/pdf'
+    ]
+    
+    const validExtensions = ['.doc', '.docx', '.pdf']
+    
+    // Validate file types and size (25MB limit per file)
+    const maxSize = 25 * 1024 * 1024 // 25MB
+    
+    const invalidFiles = files.filter(file => {
+      const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+      // Check file size
+      if (file.size > maxSize) {
+        return true
+      }
+      // Check file type
+      return !validTypes.includes(file.type) && !validExtensions.includes(extension)
+    })
+    
+    if (invalidFiles.length > 0) {
+      setError('Please select only Word documents (.doc, .docx) or PDF files (.pdf). Maximum file size is 25MB per file.')
+      return
+    }
+    
+    // Add files to state
+    setNewDocuments(prev => [...prev, ...files])
+    setError('')
+    
+    // Reset file input
+    e.target.value = ''
+  }
+
+  // Remove existing document
+  const removeExistingDocument = (index) => {
+    setExistingDocuments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Remove new document from upload list
+  const removeNewDocument = (index) => {
+    setNewDocuments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Upload new documents function
+  const uploadNewDocuments = async () => {
+    if (newDocuments.length === 0) return []
+    
+    setUploadingDocs(true)
+    const uploadedUrls = []
+    
+    try {
+      for (const file of newDocuments) {
+        const formData = new FormData()
+        formData.append('document', file)
+        
+        const response = await axiosInstance.post(
+          API_PATHS.PROGRAM.UPLOAD_DOCUMENT,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        )
+        
+        if (response.data.success && response.data.documentUrl) {
+          uploadedUrls.push(response.data.documentUrl)
+        }
+      }
+      
+      return uploadedUrls
+    } catch (error) {
+      console.error('Document upload error:', error)
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload documents. Please try again.'
+      throw new Error(errorMessage)
+    } finally {
+      setUploadingDocs(false)
+    }
+  }
   
   // Check if all required fields are filled
   const isFormValid = () => {
@@ -224,8 +323,24 @@ const EditProject = () => {
     }
     
     setSaving(true)
+    setError('')
     
     try {
+      // Upload new documents first
+      let uploadedDocumentUrls = []
+      if (newDocuments.length > 0) {
+        try {
+          uploadedDocumentUrls = await uploadNewDocuments()
+        } catch (uploadError) {
+          setError(uploadError.message || 'Failed to upload new documents. Please try again.')
+          setSaving(false)
+          return
+        }
+      }
+      
+      // Combine existing documents (that weren't removed) with newly uploaded ones
+      const allDocuments = [...existingDocuments, ...uploadedDocumentUrls]
+      
       // Prepare activities data
       const activitiesData = activities.map(activity => ({
         activityId: activity.activityId?.trim() || undefined,
@@ -252,7 +367,8 @@ const EditProject = () => {
         currency,
         projectType,
         projectStatus,
-        activities: activitiesData
+        activities: activitiesData,
+        documents: allDocuments // Include all documents (existing + new)
       }
       
       const response = await axiosInstance.put(
@@ -513,6 +629,168 @@ const EditProject = () => {
             {/* Divider */}
             <div className="border-t border-gray-200 my-10"></div>
             
+            {/* Project Documents Section */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Documents</h2>
+              
+              {/* Existing Documents */}
+              {existingDocuments.length > 0 && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Existing Documents
+                  </label>
+                  <div className="space-y-2">
+                    {existingDocuments.map((documentUrl, index) => {
+                      const fileName = documentUrl.split('/').pop().split('?')[0] || `Document ${index + 1}`
+                      const fileExtension = fileName.split('.').pop()?.toLowerCase() || ''
+                      const isWordDoc = fileExtension === 'doc' || fileExtension === 'docx'
+                      const isPdf = fileExtension === 'pdf'
+                      
+                      let iconBg = 'bg-gray-100'
+                      let iconColor = 'text-gray-600'
+                      
+                      if (isWordDoc) {
+                        iconBg = 'bg-blue-100'
+                        iconColor = 'text-blue-600'
+                      } else if (isPdf) {
+                        iconBg = 'bg-red-100'
+                        iconColor = 'text-red-600'
+                      }
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md border border-gray-200">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${iconBg}`}>
+                              {isWordDoc ? (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              ) : isPdf ? (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              ) : (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
+                            <a
+                              href={documentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 text-xs font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+                            >
+                              View
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => removeExistingDocument(index)}
+                              className="px-3 py-1 text-xs font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Upload New Documents */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {existingDocuments.length > 0 ? 'Add More Documents' : 'Attach Documents (Word or PDF)'} - Optional (Max 25MB per file)
+                </label>
+                <input
+                  type="file"
+                  accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                  multiple
+                  onChange={handleDocumentChange}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  disabled={uploadingDocs || saving}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  You can select multiple Word documents (.doc, .docx) or PDF files (.pdf). Max 25MB per file.
+                </p>
+              </div>
+              
+              {/* Display selected new documents */}
+              {newDocuments.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Documents to Upload ({newDocuments.length})
+                  </label>
+                  <div className="space-y-2">
+                    {newDocuments.map((file, index) => {
+                      const fileExtension = file.name.split('.').pop()?.toLowerCase() || ''
+                      const isWordDoc = fileExtension === 'doc' || fileExtension === 'docx'
+                      const isPdf = fileExtension === 'pdf'
+                      
+                      let iconBg = 'bg-gray-100'
+                      let iconColor = 'text-gray-600'
+                      
+                      if (isWordDoc) {
+                        iconBg = 'bg-blue-100'
+                        iconColor = 'text-blue-600'
+                      } else if (isPdf) {
+                        iconBg = 'bg-red-100'
+                        iconColor = 'text-red-600'
+                      }
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${iconBg}`}>
+                              {isWordDoc ? (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              ) : isPdf ? (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              ) : (
+                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                              <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeNewDocument(index)}
+                            className="ml-4 px-3 py-1 text-xs font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {existingDocuments.length === 0 && newDocuments.length === 0 && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No documents attached. You can upload documents using the file input above.
+                </div>
+              )}
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-10"></div>
+            
             {/* Activities */}
             <div className="mb-8">
               <div className="flex justify-between items-center mb-4">
@@ -674,12 +952,12 @@ const EditProject = () => {
               </button>
               <button
                 type="submit"
-                disabled={saving || !isFormValid()}
+                disabled={saving || uploadingDocs || !isFormValid()}
                 className={`px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-colors ${
-                  saving || !isFormValid() ? 'opacity-50 cursor-not-allowed' : ''
+                  saving || uploadingDocs || !isFormValid() ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {saving ? 'Updating...' : 'Update Project'}
+                {uploadingDocs ? 'Uploading Documents...' : saving ? 'Updating...' : 'Update Project'}
               </button>
             </div>
           </form>

@@ -942,6 +942,33 @@ const updateProject = async (req, res) => {
     // Update project fields
     await existingProject.update(updateObj);
 
+    // Update documents if provided (delete existing and create new)
+    if (req.body.documents !== undefined) {
+      if (!Array.isArray(req.body.documents)) {
+        return res.status(400).json({
+          success: false,
+          message: "Documents must be an array",
+        });
+      }
+
+      // Delete existing documents
+      await ProjectDocument.destroy({
+        where: { projectId: projectIdInt }
+      });
+
+      // Create new documents
+      if (req.body.documents.length > 0) {
+        for (const documentUrl of req.body.documents) {
+          if (documentUrl && typeof documentUrl === 'string' && documentUrl.trim()) {
+            await ProjectDocument.create({
+              projectId: projectIdInt,
+              documentUrl: documentUrl.trim(),
+            });
+          }
+        }
+      }
+    }
+
     // Update activities if provided (delete existing and create new)
     if (activities !== undefined) {
       if (!Array.isArray(activities)) {
