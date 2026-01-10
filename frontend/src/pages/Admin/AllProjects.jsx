@@ -112,7 +112,6 @@ const MyProjects = () => {
           ? `${project.currency} ${project.totalExpense}`.toLowerCase()
           : "";
 
-
       // Combine all searchable fields into a single string
       const searchableText = [
         projectId,
@@ -168,8 +167,6 @@ const MyProjects = () => {
     }
   };
 
-
-
   const formatCurrency = (amount, currency) => {
     if (amount === null || amount === undefined) return "N/A";
     const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
@@ -196,7 +193,6 @@ const MyProjects = () => {
 
     return donated > 0 ? (expense / donated) * 100 : 0;
   };
-
 
   // const getProgressBadgeStyle = (status) => {
   //   const statusStyles = {
@@ -243,16 +239,6 @@ const MyProjects = () => {
     return statusMap[status] || "Spent";
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading projects...</div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -267,7 +253,7 @@ const MyProjects = () => {
         </div>
 
         {/* Search Bar */}
-        {allProjects.length > 0 && (
+        {!loading && allProjects.length > 0 && (
           <div className="mb-6">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -327,15 +313,31 @@ const MyProjects = () => {
           </div>
         )}
 
-        {/* Error Message */}
-        {error && (
+        {/* Loading - Same as UserHistory */}
+        {loading && (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <div className="text-lg text-gray-600">Loading projects...</div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Message - Same pattern as UserHistory */}
+        {error && !loading && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-800 text-sm">{error}</p>
+            <button
+              onClick={() => fetchProjects()}
+              className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
         {/* Projects List */}
-        {allProjects.length === 0 ? (
+        {!loading && !error && allProjects.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -358,36 +360,45 @@ const MyProjects = () => {
               Get started by creating your first project
             </p>
           </div>
-        ) : projects.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-16 h-16 text-gray-400 mx-auto mb-4"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No matching projects
-            </h3>
-            <p className="text-gray-500 mb-6">
-              Try adjusting your search query
-            </p>
-            <button
-              onClick={() => setSearchQuery("")}
-              className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-            >
-              Clear Search
-            </button>
-          </div>
-        ) : (
+        )}
+
+        {!loading &&
+          !error &&
+          allProjects.length > 0 &&
+          projects.length === 0 &&
+          searchQuery && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-16 h-16 text-gray-400 mx-auto mb-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No matching projects
+              </h3>
+              <p className="text-gray-500 mb-6">
+                Try adjusting your search query
+              </p>
+              <button
+                onClick={() => setSearchQuery("")}
+                className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+              >
+                Clear Search
+              </button>
+            </div>
+          )}
+
+        {/* Projects Display - Only show when not loading, no error, and we have projects */}
+        {!loading && !error && projects.length > 0 && (
           <div className="space-y-4">
             {/* Desktop Table View */}
             <div className="hidden lg:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -438,7 +449,9 @@ const MyProjects = () => {
                           key={project.id || project._id}
                           className="hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() =>
-                            navigate(`/admin/projects/${project.id || project._id}`)
+                            navigate(
+                              `/admin/projects/${project.id || project._id}`
+                            )
                           }
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -537,7 +550,9 @@ const MyProjects = () => {
                   <div
                     key={project.id || project._id}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => navigate(`/admin/projects/${project.id || project._id}`)}
+                    onClick={() =>
+                      navigate(`/admin/projects/${project.id || project._id}`)
+                    }
                   >
                     <div className="space-y-3">
                       {/* Project ID and Title */}
