@@ -283,12 +283,17 @@ const Profile = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading profile...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading profile...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
-
+ 
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto p-6">
