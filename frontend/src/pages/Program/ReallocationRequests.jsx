@@ -697,7 +697,12 @@ const ReallocationRequests = () => {
                           <select
                             value={sourceProjectId}
                             onChange={(e) => {
-                              setSourceProjectId(e.target.value)
+                              const newSourceProjectId = e.target.value
+                              setSourceProjectId(newSourceProjectId)
+                              // Clear destination if it matches the new source project
+                              if (destinationProjectId === newSourceProjectId) {
+                                setDestinationProjectId('')
+                              }
                               setError('')
                             }}
                             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -724,11 +729,16 @@ const ReallocationRequests = () => {
                             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                           >
                             <option value="">Select destination project</option>
-                            {projects.map(project => (
-                              <option key={project.id || project._id} value={project.id || project._id}>
-                                {project.projectId} - {project.title}
-                              </option>
-                            ))}
+                            {projects
+                              .filter(project => {
+                                const projectId = project.id || project._id
+                                return projectId.toString() !== sourceProjectId.toString()
+                              })
+                              .map(project => (
+                                <option key={project.id || project._id} value={project.id || project._id}>
+                                  {project.projectId} - {project.title}
+                                </option>
+                              ))}
                           </select>
                         </div>
                       </>
