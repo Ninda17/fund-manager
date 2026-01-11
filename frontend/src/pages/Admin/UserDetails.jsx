@@ -170,9 +170,7 @@ const UserDetails = () => {
                 </div>
               </div>
             )}
-            <p className="mt-3 text-sm text-gray-500 text-center">
-              {user.profileImageUrl ? "Profile Picture" : "Default Avatar"}
-            </p>
+      
           </div>
 
           <div className="flex-1 space-y-2">

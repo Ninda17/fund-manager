@@ -175,21 +175,21 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Prevent deleting admin account
-    if (user.role === "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot delete admin account",
-      });
-    }
+    // // Prevent deleting admin account
+    // if (user.role === "admin") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Cannot delete admin account",
+    //   });
+    // }
 
-    // Prevent deleting yourself
-    if (user.id === req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot delete your own account",
-      });
-    }
+    // // Prevent deleting yourself
+    // if (user.id === req.user.id) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Cannot delete your own account",
+    //   });
+    // }
 
     await user.destroy();
 

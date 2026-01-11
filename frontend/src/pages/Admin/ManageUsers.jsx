@@ -19,12 +19,13 @@ const ManageUsers = () => {
       const res = await axiosInstance.get(API_PATHS.ADMIN.USERS);
 
       // Filter out admin users
-      const nonAdminUsers = (res.data.data || []).filter(
-        (user) => user.role !== "admin"
-      );
+      const Users = (res.data.data || []);
+      // const Users = (res.data.data || []).filter(
+      //   (user) => user.role !== "admin"
+      // );
 
-      setUsers(nonAdminUsers);
-      setAllUsers(nonAdminUsers);
+      setUsers(Users);
+      setAllUsers(Users);
     } catch (err) {
       console.error("Fetch users error:", err);
       setError(err.response?.data?.message || "Failed to fetch users.");
