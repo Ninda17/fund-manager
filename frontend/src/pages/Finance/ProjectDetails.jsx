@@ -17,7 +17,7 @@ const ProjectDetails = () => {
     try {
       setLoading(true)
       setError('')
-      const response = await axiosInstance.get(API_PATHS.FINANCE.PROJECT_BY_ID(id))
+       const response = await axiosInstance.get(API_PATHS.FINANCE.GET_PROJECT_BY_ID(id))
       if (response.data.success) {
         setProject(response.data.data)
       }
