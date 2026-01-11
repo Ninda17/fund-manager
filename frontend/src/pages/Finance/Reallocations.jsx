@@ -62,6 +62,7 @@ const Reallocations = () => {
         const requestedByName = (req.requestedBy?.name || '').toLowerCase()
         const requestedByEmail = (req.requestedBy?.email || '').toLowerCase()
         
+        
         return (
           sourceProject.toLowerCase().includes(query) ||
           destProject.toLowerCase().includes(query) ||
