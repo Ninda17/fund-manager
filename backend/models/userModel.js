@@ -116,12 +116,10 @@ User.beforeCreate(async (user) => {
   if (user.role === "admin") {
     const existingAdmin = await User.findOne({ where: { role: "admin" } });
     if (existingAdmin) {
-      throw new Error("Only one admin account is allowed");
+      throw new Error("An Admin is already registered");
     }
     // Auto-approve admin
     user.isApproved = "approved";
-    user.isEmailVerified = true;
-    user.deleteAfter = null; // Never delete admin accounts
   }
 });
 
@@ -132,12 +130,10 @@ User.beforeUpdate(async (user) => {
       where: { role: "admin" },
     });
     if (existingAdmin && existingAdmin.id !== user.id) {
-      throw new Error("Only one admin account is allowed");
+      throw new Error("An Admin is already registered");
     }
     // Auto-approve admin
     user.isApproved = "approved";
-    user.isEmailVerified = true;
-    user.deleteAfter = null;
   }
 });
 

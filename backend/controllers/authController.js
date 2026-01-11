@@ -94,7 +94,7 @@ const register = async (req, res) => {
     }
 
     // Handle admin limit error (from beforeCreate hook)
-    if (error.message === "Only one admin account is allowed") {
+    if (error.message === "An Admin is already registered") {
       return res.status(400).json({
         success: false,
         message: error.message,
