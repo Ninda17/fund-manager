@@ -10,6 +10,7 @@ const {
   getAllProjectsAdmin,
   getDashboardData,
   getUserActivityHistory,
+  deleteUserActivityHistory,
   getAllReallocationRequestsForAdmin,
   getReallocationRequestByIdForAdmin,
   
@@ -45,6 +46,7 @@ router.get("/dashboard", getDashboardData);
 
 // Activity log routes
 router.get("/user-activity-history", getUserActivityHistory);
+router.delete("/user-activity-history", deleteUserActivityHistory);
 
 // Reallocation routes
 router.get('/reallocations', getAllReallocationRequestsForAdmin);

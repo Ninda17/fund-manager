@@ -9,6 +9,8 @@ const UserHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedLogs, setSelectedLogs] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const getActivityLogs = async () => {
     setLoading(true);
@@ -39,6 +41,9 @@ const UserHistory = () => {
 
   // Client-side filtering similar to MyProjects
   useEffect(() => {
+    // Clear selection when search changes
+    setSelectedLogs(new Set());
+    
     if (!searchQuery.trim()) {
       setLogs(allLogs);
       return;
@@ -115,6 +120,72 @@ const UserHistory = () => {
     setSearchQuery(""); // This will trigger the useEffect to reset logs to allLogs
   };
 
+  // Handle individual checkbox selection
+  const handleSelectLog = (logId) => {
+    setSelectedLogs((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(logId)) {
+        newSet.delete(logId);
+      } else {
+        newSet.add(logId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedLogs(new Set(logs.map((log) => log.id)));
+    } else {
+      setSelectedLogs(new Set());
+    }
+  };
+
+  // Check if all visible logs are selected
+  const isAllSelected = logs.length > 0 && logs.every((log) => selectedLogs.has(log.id));
+
+  // Cancel selection
+  const handleCancelSelection = () => {
+    setSelectedLogs(new Set());
+  };
+
+  // Delete selected logs
+  const handleDeleteSelected = async () => {
+    if (selectedLogs.size === 0) return;
+
+    const confirmMessage = `Are you sure you want to delete ${selectedLogs.size} ${selectedLogs.size === 1 ? 'log' : 'logs'}? This action cannot be undone.`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError("");
+
+    try {
+      const logIds = Array.from(selectedLogs);
+      const res = await axiosInstance.delete(API_PATHS.ADMIN.DELETE_ACTIVITY_LOGS, {
+        data: { logIds },
+      });
+
+      if (res.data.success) {
+        // Remove deleted logs from state
+        setAllLogs((prev) => prev.filter((log) => !selectedLogs.has(log.id)));
+        setLogs((prev) => prev.filter((log) => !selectedLogs.has(log.id)));
+        setSelectedLogs(new Set());
+        // Optionally show success message
+        alert(res.data.message || "Logs deleted successfully");
+      } else {
+        throw new Error(res.data.message || "Failed to delete logs");
+      }
+    } catch (err) {
+      console.error("Delete logs error:", err);
+      setError(err.response?.data?.message || "Failed to delete logs. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -130,6 +201,33 @@ const UserHistory = () => {
             <span className="mr-4">Total Records: {logs.length}</span>
           </div>
         </div>
+
+        {/* Action Bar - Delete and Cancel buttons when items are selected */}
+        {selectedLogs.size > 0 && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedLogs.size} {selectedLogs.size === 1 ? 'log' : 'logs'} selected
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCancelSelection}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? "Deleting..." : `Delete ${selectedLogs.size} ${selectedLogs.size === 1 ? 'Log' : 'Logs'}`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Search Bar - Updated to match MyProjects */}
         <div className="mb-6">
@@ -228,6 +326,14 @@ const UserHistory = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Date & Time
                       </th>
@@ -243,8 +349,18 @@ const UserHistory = () => {
                     {logs.map((log) => (
                       <tr
                         key={log.id}
-                        className="hover:bg-gray-50 transition-colors"
+                        className={`hover:bg-gray-50 transition-colors ${
+                          selectedLogs.has(log.id) ? "bg-blue-50" : ""
+                        }`}
                       >
+                        <td className="px-6 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedLogs.has(log.id)}
+                            onChange={() => handleSelectLog(log.id)}
+                            className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           {formatDateTime(log.dateTime)}
                         </td>
@@ -267,12 +383,45 @@ const UserHistory = () => {
 
             {/* Mobile Cards - Only 3 Fields */}
             <div className="lg:hidden space-y-4">
+              {/* Select All for Mobile */}
+              <div className="mb-2 px-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Select All
+                  </span>
+                </label>
+              </div>
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+                  className={`bg-white rounded-lg shadow-sm border p-4 ${
+                    selectedLogs.has(log.id)
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200"
+                  }`}
                 >
                   <div className="space-y-3">
+                    {/* Checkbox */}
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLogs.has(log.id)}
+                          onChange={() => handleSelectLog(log.id)}
+                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mr-2"
+                        />
+                        <span className="text-xs font-medium text-gray-700">
+                          Select
+                        </span>
+                      </label>
+                    </div>
+
                     {/* Date & Time */}
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-gray-700">
