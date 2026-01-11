@@ -100,22 +100,38 @@ const ActivityDetails = () => {
   }
 
   const calculateActivityUtilization = () => {
-    if (!activity || !activity.budget || activity.budget === 0) return 0
-    const expense = activity.expense || 0
-    return Math.min((expense / activity.budget) * 100)
+    if (!activity) return 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const calculateRemainingBudget = () => {
     if (!activity) return 0
-    const budget = activity.budget || 0
-    const expense = activity.expense || 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (isNaN(budget)) return 0
+    if (isNaN(expense)) return budget
+    
     return Math.max(budget - expense, 0)
   }
 
   const calculateSubActivityUtilization = (subActivity) => {
-    if (!subActivity || !subActivity.budget || subActivity.budget === 0) return 0
-    const expense = subActivity.expense || 0
-    return Math.min((expense / subActivity.budget) * 100)
+    if (!subActivity) return 0
+    const budget = typeof subActivity.budget === 'string' ? parseFloat(subActivity.budget) : (subActivity.budget || 0)
+    const expense = typeof subActivity.expense === 'string' ? parseFloat(subActivity.expense) : (subActivity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const getProgressBadgeStyle = (status) => {
@@ -159,11 +175,17 @@ const ActivityDetails = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading activity details...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading activity details...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
+
 
   if (error) {
     return (

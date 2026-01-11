@@ -101,22 +101,38 @@ const ActivityDetails = () => {
   }
 
   const calculateActivityUtilization = () => {
-    if (!activity || !activity.budget || activity.budget === 0) return 0
-    const expense = activity.expense || 0
-    return Math.min((expense / activity.budget) * 100)
+    if (!activity) return 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const calculateRemainingBudget = () => {
     if (!activity) return 0
-    const budget = activity.budget || 0
-    const expense = activity.expense || 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (isNaN(budget)) return 0
+    if (isNaN(expense)) return budget
+    
     return Math.max(budget - expense, 0)
   }
 
   const calculateSubActivityUtilization = (subActivity) => {
-    if (!subActivity || !subActivity.budget || subActivity.budget === 0) return 0
-    const expense = subActivity.expense || 0
-    return Math.min((expense / subActivity.budget) * 100)
+    if (!subActivity) return 0
+    const budget = typeof subActivity.budget === 'string' ? parseFloat(subActivity.budget) : (subActivity.budget || 0)
+    const expense = typeof subActivity.expense === 'string' ? parseFloat(subActivity.expense) : (subActivity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const getProgressBadgeStyle = (status) => {
@@ -190,10 +206,11 @@ const ActivityDetails = () => {
     if (!confirmed) return
 
     try {
-      setDeletingSubActivity(subActivity._id)
+      const subActivityId = subActivity.id || subActivity._id
+      setDeletingSubActivity(subActivityId)
       setError('')
       const response = await axiosInstance.delete(
-        API_PATHS.PROGRAM.DELETE_SUBACTIVITY(projectId, activityId, subActivity._id)
+        API_PATHS.PROGRAM.DELETE_SUBACTIVITY(projectId, activityId, subActivityId)
       )
       if (response.data.success) {
         alert('Sub-activity deleted successfully!')
@@ -214,11 +231,17 @@ const ActivityDetails = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading activity details...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading activity details...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
+
 
   if (error) {
     return (
@@ -553,11 +576,11 @@ const ActivityDetails = () => {
                                   e.stopPropagation()
                                   handleDeleteSubActivity(subActivity)
                                 }}
-                                disabled={deletingSubActivity === subActivity._id}
+                                disabled={deletingSubActivity === (subActivity.id || subActivity._id)}
                                 className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 title="Delete sub-activity"
                               >
-                                {deletingSubActivity === subActivity._id ? (
+                                {deletingSubActivity === (subActivity.id || subActivity._id) ? (
                                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -633,11 +656,11 @@ const ActivityDetails = () => {
                             <span className="text-xs font-medium text-gray-500">ACTIONS</span>
                             <button
                               onClick={() => handleDeleteSubActivity(subActivity)}
-                              disabled={deletingSubActivity === subActivity._id}
+                              disabled={deletingSubActivity === (subActivity.id || subActivity._id)}
                               className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                               title="Delete sub-activity"
                             >
-                              {deletingSubActivity === subActivity._id ? (
+                              {deletingSubActivity === (subActivity.id || subActivity._id) ? (
                                 <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

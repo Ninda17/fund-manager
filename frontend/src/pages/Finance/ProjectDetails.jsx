@@ -17,7 +17,7 @@ const ProjectDetails = () => {
     try {
       setLoading(true)
       setError('')
-       const response = await axiosInstance.get(API_PATHS.FINANCE.GET_PROJECT_BY_ID(id))
+      const response = await axiosInstance.get(API_PATHS.FINANCE.GET_PROJECT_BY_ID(id))
       if (response.data.success) {
         setProject(response.data.data)
       }
@@ -110,22 +110,38 @@ const ProjectDetails = () => {
   }
 
   const calculateUtilization = () => {
-    if (!project || !project.amountDonated || project.amountDonated === 0) return 0
-    const totalExpense = project.totalExpense || 0
-    return Math.min((totalExpense / project.amountDonated) * 100)
+    if (!project) return 0
+    const amountDonated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : (project.amountDonated || 0)
+    const totalExpense = typeof project.totalExpense === 'string' ? parseFloat(project.totalExpense) : (project.totalExpense || 0)
+    
+    if (!amountDonated || amountDonated === 0 || isNaN(amountDonated)) return 0
+    if (isNaN(totalExpense)) return 0
+    
+    const utilization = (totalExpense / amountDonated) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const calculateRemainingBudget = () => {
     if (!project) return 0
-    const amountDonated = project.amountDonated || 0
-    const totalExpense = project.totalExpense || 0
+    const amountDonated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : (project.amountDonated || 0)
+    const totalExpense = typeof project.totalExpense === 'string' ? parseFloat(project.totalExpense) : (project.totalExpense || 0)
+    
+    if (isNaN(amountDonated)) return 0
+    if (isNaN(totalExpense)) return amountDonated
+    
     return Math.max(amountDonated - totalExpense, 0)
   }
 
   const calculateActivityUtilization = (activity) => {
-    if (!activity || !activity.budget || activity.budget === 0) return 0
-    const expense = activity.expense || 0
-    return Math.min((expense / activity.budget) * 100)
+    if (!activity) return 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const getProgressBadgeStyle = (status) => {
@@ -169,11 +185,17 @@ const ProjectDetails = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading project details...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading project details...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
+
 
   if (error) {
     return (

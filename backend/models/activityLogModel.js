@@ -18,8 +18,8 @@ const ActivityLog = sequelize.define(
         key: "id",
       },
       // Note: Relationships will be defined in models/index.js
-    },
-    userName: {
+  },
+  userName: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -27,8 +27,8 @@ const ActivityLog = sequelize.define(
           msg: "User name is required",
         },
       },
-    },
-    userEmail: {
+  },
+  userEmail: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -39,8 +39,8 @@ const ActivityLog = sequelize.define(
           msg: "User email is required",
         },
       },
-    },
-    userRole: {
+  },
+  userRole: {
       type: DataTypes.ENUM("admin", "finance", "program"),
       allowNull: false,
       validate: {
@@ -49,8 +49,8 @@ const ActivityLog = sequelize.define(
           msg: "User role must be admin, finance, or program",
         },
       },
-    },
-    action: {
+  },
+  action: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -58,8 +58,8 @@ const ActivityLog = sequelize.define(
           msg: "Action is required",
         },
       },
-    },
-    entityType: {
+  },
+  entityType: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -67,8 +67,8 @@ const ActivityLog = sequelize.define(
           msg: "Entity type is required",
         },
       },
-    },
-    entityId: {
+  },
+  entityId: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -76,22 +76,22 @@ const ActivityLog = sequelize.define(
           msg: "Entity ID is required",
         },
       },
-    },
-    description: {
+  },
+  description: {
       type: DataTypes.TEXT,
       allowNull: true,
       defaultValue: "",
-    },
-    metadata: {
+  },
+  metadata: {
       type: DataTypes.JSON, // MySQL 5.7+ supports JSON type
       allowNull: true,
       defaultValue: {},
-    },
-    timestamp: {
+  },
+  timestamp: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
-    },
+  },
   },
   {
     tableName: "activity_logs",

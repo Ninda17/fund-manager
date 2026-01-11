@@ -163,12 +163,16 @@ const AllProjects = () => {
   }
 
   const calculateUtilization = (project) => {
-    if (!project || !project.amountDonated) return 0;
-
-    const donated = project.amountDonated;
-    const expense = project.totalExpense || 0;
-
-    return donated > 0 ? (expense / donated) * 100 : 0;
+    if (!project) return 0;
+    
+    const donated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : (project.amountDonated || 0);
+    const expense = typeof project.totalExpense === 'string' ? parseFloat(project.totalExpense) : (project.totalExpense || 0);
+    
+    if (!donated || donated === 0 || isNaN(donated)) return 0;
+    if (isNaN(expense)) return 0;
+    
+    const utilization = (expense / donated) * 100;
+    return isNaN(utilization) ? 0 : utilization;
   };
 
 
@@ -213,11 +217,17 @@ const AllProjects = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading projects...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">
+              Loading projects...
+            </div>
+          </div>
         </div>
       </DashboardLayout>
-    )
+    );
   }
+
 
   return (
     <DashboardLayout>

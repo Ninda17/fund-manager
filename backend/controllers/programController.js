@@ -1314,10 +1314,10 @@ const deleteActivity = async (req, res) => {
     }
 
     // Delete the activity (CASCADE will delete subactivities)
+    // Expense recalculation happens automatically via Activity.afterDestroy hook
     await activity.destroy();
 
-    // Recalculate project totalExpense from remaining activities
-    // This is handled by the project model hooks, but we need to trigger a save
+    // Fetch updated project for utilization check (hooks already recalculated expenses)
     const updatedProject = await Project.findByPk(projectIdInt, {
       include: [
         {
@@ -1332,11 +1332,6 @@ const deleteActivity = async (req, res) => {
         },
       ],
     });
-
-    if (updatedProject) {
-      // Trigger recalculation by saving (hooks will recalculate totalExpense)
-      await updatedProject.save();
-    }
 
     // Check utilization and send notifications (non-blocking)
     try {
@@ -1469,43 +1464,28 @@ const deleteSubActivity = async (req, res) => {
     }
 
     // Delete the subactivity
+    // Expense recalculation happens automatically via SubActivity.afterDestroy hook
     await subactivity.destroy();
 
-    // Recalculate activity expense and project totalExpense
-    // This is handled by hooks, but we need to trigger saves
-    const updatedActivity = await Activity.findByPk(activity.id, {
-      include: [
-        {
-          model: SubActivity,
-          as: "subActivities",
-        },
-      ],
-    });
-
-    if (updatedActivity) {
-      // Trigger recalculation by saving (hooks will recalculate activity expense)
-      await updatedActivity.save();
-    }
-
-    // Recalculate project totalExpense
-    const updatedProject = await Project.findByPk(projectIdInt, {
-      include: [
-        {
-          model: Activity,
-          as: "activities",
-          include: [
-            {
-              model: SubActivity,
-              as: "subActivities",
-            },
-          ],
-        },
-      ],
-    });
-
-    if (updatedProject) {
-      // Trigger recalculation by saving (hooks will recalculate totalExpense)
-      await updatedProject.save();
+    // Fetch updated project for utilization check (hooks already recalculated expenses)
+    let updatedProject = null;
+    try {
+      updatedProject = await Project.findByPk(projectIdInt, {
+        include: [
+          {
+            model: Activity,
+            as: "activities",
+            include: [
+              {
+                model: SubActivity,
+                as: "subActivities",
+              },
+            ],
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("Error fetching project for utilization check:", error);
     }
 
     // Check utilization and send notifications (non-blocking)

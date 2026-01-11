@@ -289,6 +289,7 @@ const Signup = () => {
             >
               <option value="program">Program</option>
               <option value="finance">Finance</option>
+              <option value="admin">Admin</option>
             </select>
             <p className='text-xs text-gray-500 mt-1'>Your account should be approved by the admin in order to login. An approval or rejection mail will be sent to you by the admin. </p>
           </div>

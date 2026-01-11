@@ -175,21 +175,21 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Prevent deleting admin account
-    if (user.role === "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot delete admin account",
-      });
-    }
+    // // Prevent deleting admin account
+    // if (user.role === "admin") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Cannot delete admin account",
+    //   });
+    // }
 
-    // Prevent deleting yourself
-    if (user.id === req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot delete your own account",
-      });
-    }
+    // // Prevent deleting yourself
+    // if (user.id === req.user.id) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Cannot delete your own account",
+    //   });
+    // }
 
     await user.destroy();
 
@@ -458,7 +458,7 @@ const getActivityById = async (req, res) => {
 
     // Find activity - can be by ID (integer) or activityId (string)
     let activity = null;
-    
+
     // Strategy 1: Search by integer ID
     if (Number.isInteger(parseInt(activityId))) {
       activity = await Activity.findByPk(activityId, {
@@ -475,7 +475,7 @@ const getActivityById = async (req, res) => {
         ],
       });
     }
-    
+
     // Strategy 2: Search by activityId field (string like "102")
     if (!activity) {
       activity = await Activity.findOne({

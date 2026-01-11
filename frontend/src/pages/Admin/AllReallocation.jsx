@@ -54,14 +54,23 @@ const AllReallocation = () => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((req) => {
         const sourceProject =
-          req.sourceProject?.projectId || req.sourceProjectId?.projectId || req.sourceProjectId?.id?.toString() || req.sourceProjectId?._id?.toString() || "";
+          req.sourceProject?.projectId ||
+          req.sourceProjectId?.projectId ||
+          req.sourceProjectId?.id?.toString() ||
+          req.sourceProjectId?._id?.toString() ||
+          "";
         const destProject =
           req.destinationProject?.projectId ||
           req.destinationProjectId?.projectId ||
           req.destinationProjectId?.id?.toString() ||
           req.destinationProjectId?._id?.toString() ||
           "";
-        const project = req.project?.projectId || req.projectId?.projectId || req.projectId?.id?.toString() || req.projectId?._id?.toString() || "";
+        const project =
+          req.project?.projectId ||
+          req.projectId?.projectId ||
+          req.projectId?.id?.toString() ||
+          req.projectId?._id?.toString() ||
+          "";
         const amountStr = req.amount?.toString() || "";
         const reasonStr = (req.reason || "").toLowerCase();
         const statusStr = (req.status || "").toLowerCase();
@@ -115,7 +124,8 @@ const AllReallocation = () => {
 
   const getDestinationDisplay = (request) => {
     if (request.requestType === "project_to_project") {
-      const project = request.destinationProject || request.destinationProjectId;
+      const project =
+        request.destinationProject || request.destinationProjectId;
       return project?.projectId || project?.title || "N/A";
     } else if (request.requestType === "activity_to_activity") {
       const project = request.project || request.projectId;
@@ -165,16 +175,6 @@ const AllReallocation = () => {
     return labels[type] || type;
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-lg">Loading reallocation requests...</div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -188,8 +188,20 @@ const AllReallocation = () => {
           </p>
         </div>
 
-        {/* Search Bar */}
-        {allRequests.length > 0 && (
+        {/* Loading - Same as UserHistory */}
+        {loading && (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <div className="text-lg text-gray-600">
+                Loading reallocation requests...
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search Bar - Only show when not loading and we have requests */}
+        {!loading && allRequests.length > 0 && (
           <div className="mb-6">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -249,8 +261,8 @@ const AllReallocation = () => {
           </div>
         )}
 
-        {/* Status Filter */}
-        {allRequests.length > 0 && (
+        {/* Status Filter - Only show when not loading and we have requests */}
+        {!loading && allRequests.length > 0 && (
           <div className="mb-6">
             <select
               value={statusFilter}
@@ -265,15 +277,21 @@ const AllReallocation = () => {
           </div>
         )}
 
-        {/* Error Message */}
-        {error && (
+        {/* Error Message - Same pattern as UserHistory */}
+        {error && !loading && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-800 text-sm">{error}</p>
+            <button
+              onClick={() => fetchRequests()}
+              className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {/* Requests List */}
-        {allRequests.length === 0 ? (
+        {/* Empty State - No requests at all */}
+        {!loading && !error && allRequests.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -296,39 +314,48 @@ const AllReallocation = () => {
               There are currently no reallocation requests in the system
             </p>
           </div>
-        ) : requests.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-16 h-16 text-gray-400 mx-auto mb-4"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No matching requests
-            </h3>
-            <p className="text-gray-500 mb-6">
-              Try adjusting your search query or status filter
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setStatusFilter("");
-              }}
-              className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
-            >
-              Clear Filters
-            </button>
-          </div>
-        ) : (
+        )}
+
+        {/* No Search Results - When we have requests but search/filter returns none */}
+        {!loading &&
+          !error &&
+          allRequests.length > 0 &&
+          requests.length === 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-16 h-16 text-gray-400 mx-auto mb-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No matching requests
+              </h3>
+              <p className="text-gray-500 mb-6">
+                Try adjusting your search query or status filter
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary hover:text-white transition-colors"
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+
+        {/* Requests List - Only show when not loading, no error, and we have filtered requests */}
+        {!loading && !error && requests.length > 0 && (
           <div className="space-y-4">
             {/* Desktop Table View */}
             <div className="hidden lg:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -368,7 +395,11 @@ const AllReallocation = () => {
                         key={request.id || request._id}
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
                         onClick={() =>
-                          navigate(`/admin/allreallocation/${request.id || request._id}`)
+                          navigate(
+                            `/admin/allreallocation/${
+                              request.id || request._id
+                            }`
+                          )
                         }
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -462,7 +493,9 @@ const AllReallocation = () => {
                   key={request.id || request._id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() =>
-                    navigate(`/admin/allreallocation/${request.id || request._id}`)
+                    navigate(
+                      `/admin/allreallocation/${request.id || request._id}`
+                    )
                   }
                 >
                   <div className="space-y-3">
