@@ -649,7 +649,7 @@ const getDashboardData = async (req, res) => {
 // Get user activity history (only for admin)
 const getUserActivityHistory = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = "" } = req.query;
+    const { search = "" } = req.query;
 
     // Only admin can access this endpoint
     if (req.user.role !== "admin") {
@@ -672,16 +672,11 @@ const getUserActivityHistory = async (req, res) => {
       ];
     }
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-
-    const totalLogs = await ActivityLog.count({ where });
-
+    // Fetch all logs without pagination
     const logs = await ActivityLog.findAll({
       attributes: ["id", "timestamp", "userEmail", "action"],
       where,
       order: [['timestamp', 'DESC']],
-      offset,
-      limit: parseInt(limit),
     });
 
     const formattedLogs = logs.map((log) => ({
@@ -694,13 +689,70 @@ const getUserActivityHistory = async (req, res) => {
     res.status(200).json({
       success: true,
       count: formattedLogs.length,
-      total: totalLogs,
-      totalPages: Math.ceil(totalLogs / parseInt(limit)),
-      currentPage: parseInt(page),
+      total: formattedLogs.length,
       data: formattedLogs,
     });
   } catch (error) {
     console.error("Get user activity history error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error. Please try again later.",
+    });
+  }
+};
+
+// Delete user activity history (only for admin)
+const deleteUserActivityHistory = async (req, res) => {
+  try {
+    const { logIds } = req.body;
+
+    // Only admin can access this endpoint
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only admin can delete activity logs.",
+      });
+    }
+
+    // Validate logIds
+    if (!logIds || !Array.isArray(logIds) || logIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of log IDs to delete.",
+      });
+    }
+
+    // Validate all IDs are integers
+    const validIds = logIds.filter((id) => Number.isInteger(parseInt(id)) && parseInt(id) > 0);
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid log IDs provided.",
+      });
+    }
+
+    // Delete the logs
+    const deletedCount = await ActivityLog.destroy({
+      where: {
+        id: { [Op.in]: validIds },
+        userRole: { [Op.in]: ["finance", "program"] }, // Only allow deleting finance and program logs
+      },
+    });
+
+    if (deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No activity logs found to delete.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} ${deletedCount === 1 ? 'log' : 'logs'}.`,
+      deletedCount,
+    });
+  } catch (error) {
+    console.error("Delete user activity history error:", error);
     res.status(500).json({
       success: false,
       message: "Server error. Please try again later.",
@@ -846,6 +898,7 @@ module.exports = {
   getActivityById,
   getDashboardData,
   getUserActivityHistory,
+  deleteUserActivityHistory,
   getAllReallocationRequestsForAdmin,
   getReallocationRequestByIdForAdmin,
 };

@@ -27,6 +27,7 @@ export const API_PATHS = {
     GET_REALLOCATION_BY_ID: (id) => `${API_BASE}/admin/reallocations/${id}`,
     DASHBOARD_DATA: `${API_BASE}/admin/dashboard`,
     ACTIVITY_LOGS: `${API_BASE}/admin/user-activity-history`,
+    DELETE_ACTIVITY_LOGS: `${API_BASE}/admin/user-activity-history`,
   },
 
   // Program endpoints
