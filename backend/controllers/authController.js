@@ -437,9 +437,9 @@ const verifyOTPAndResetPassword = async (req, res) => {
     // Find OTP
     const otpRecord = await OTP.findOne({
       where: {
-        email: user.email,
-        otp,
-        isUsed: false,
+      email: user.email,
+      otp,
+      isUsed: false,
         expiresAt: { [Op.gt]: new Date() }, // Not expired
       },
     });
@@ -494,7 +494,7 @@ const verifyEmail = async (req, res) => {
     // Find user with matching token and not expired
     const user = await User.findOne({
       where: {
-        emailVerificationToken: token,
+      emailVerificationToken: token,
         emailVerificationExpires: { [Op.gt]: new Date() },
       },
     });

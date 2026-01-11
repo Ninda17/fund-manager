@@ -101,7 +101,7 @@ const downloadProjectReport = async (req, res) => {
         ],
       });
     }
-    
+
     // If not found by integer ID, try to find by projectId string
     if (!project) {
       project = await Project.findOne({
@@ -366,7 +366,7 @@ const downloadActivityReport = async (req, res) => {
         ],
       });
     }
-    
+
     if (!project) {
       project = await Project.findOne({
         where: { projectId: projectId },
@@ -422,7 +422,7 @@ const downloadActivityReport = async (req, res) => {
       } else {
         activity = projectData.activities.find(
           (act) => act.activityId === activityId
-        );
+      );
       }
     }
 
@@ -580,7 +580,7 @@ const downloadSubactivityReport = async (req, res) => {
         ],
       });
     }
-    
+
     if (!project) {
       project = await Project.findOne({
         where: { projectId: projectId },
@@ -636,7 +636,7 @@ const downloadSubactivityReport = async (req, res) => {
       } else {
         activity = projectData.activities.find(
           (act) => act.activityId === activityId
-        );
+      );
       }
     }
 
@@ -659,9 +659,9 @@ const downloadSubactivityReport = async (req, res) => {
           (subAct) => subAct.id === subactivityIdInt || subAct.subactivityId === subactivityId
         );
       } else {
-        subactivity = activity.subActivities.find(
+      subactivity = activity.subActivities.find(
           (subAct) => subAct.subactivityId === subactivityId
-        );
+      );
       }
     }
 

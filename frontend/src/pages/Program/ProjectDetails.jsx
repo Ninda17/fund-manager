@@ -111,22 +111,38 @@ const ProjectDetails = () => {
   }
 
   const calculateUtilization = () => {
-    if (!project || !project.amountDonated || project.amountDonated === 0) return 0
-    const totalExpense = project.totalExpense || 0
-    return Math.min((totalExpense / project.amountDonated) * 100)
+    if (!project) return 0
+    const amountDonated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : (project.amountDonated || 0)
+    const totalExpense = typeof project.totalExpense === 'string' ? parseFloat(project.totalExpense) : (project.totalExpense || 0)
+    
+    if (!amountDonated || amountDonated === 0 || isNaN(amountDonated)) return 0
+    if (isNaN(totalExpense)) return 0
+    
+    const utilization = (totalExpense / amountDonated) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const calculateRemainingBudget = () => {
     if (!project) return 0
-    const amountDonated = project.amountDonated || 0
-    const totalExpense = project.totalExpense || 0
+    const amountDonated = typeof project.amountDonated === 'string' ? parseFloat(project.amountDonated) : (project.amountDonated || 0)
+    const totalExpense = typeof project.totalExpense === 'string' ? parseFloat(project.totalExpense) : (project.totalExpense || 0)
+    
+    if (isNaN(amountDonated)) return 0
+    if (isNaN(totalExpense)) return amountDonated
+    
     return Math.max(amountDonated - totalExpense, 0)
   }
 
   const calculateActivityUtilization = (activity) => {
-    if (!activity || !activity.budget || activity.budget === 0) return 0
-    const expense = activity.expense || 0
-    return Math.min((expense / activity.budget) * 100)
+    if (!activity) return 0
+    const budget = typeof activity.budget === 'string' ? parseFloat(activity.budget) : (activity.budget || 0)
+    const expense = typeof activity.expense === 'string' ? parseFloat(activity.expense) : (activity.expense || 0)
+    
+    if (!budget || budget === 0 || isNaN(budget)) return 0
+    if (isNaN(expense)) return 0
+    
+    const utilization = (expense / budget) * 100
+    return isNaN(utilization) ? 0 : utilization;
   }
 
   const getProgressBadgeStyle = (status) => {
