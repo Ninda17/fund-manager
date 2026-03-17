@@ -2,9 +2,8 @@ const User = require("../models/userModel");
 const OTP = require("../models/otpModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
 const { Op } = require("sequelize");
-const { sendOTPEmail, sendVerificationEmail } = require("../utils/emailService");
+const { sendOTPEmail } = require("../utils/emailService");
 
 const register = async (req, res) => {
   try {
@@ -31,14 +30,6 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Generate email verification token
-    const emailVerificationToken = crypto.randomBytes(32).toString("hex");
-    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    
-    // Set deletion date for unverified users (7 days from now)
-    // MongoDB TTL index will automatically delete unverified users after 7 days
-    const deleteAfter = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
     // Create user
     const user = await User.create({
       name,
@@ -46,23 +37,17 @@ const register = async (req, res) => {
       password: hashedPassword,
       profileImageUrl: profileImageUrl || null,
       role: role || "program", // Default to program if not specified
-      emailVerificationToken,
-      emailVerificationExpires,
-      deleteAfter: role === "admin" ? null : deleteAfter, // Admin is auto-verified, so no deletion
+      // Email verification feature removed: treat all users as verified.
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpires: null,
+      deleteAfter: null,
     });
-
-    // Send verification email
-    try {
-      await sendVerificationEmail(user.email, emailVerificationToken);
-    } catch (emailError) {
-      console.error("Email sending error:", emailError);
-      // Don't fail registration if email fails, but log it
-    }
 
     // Return user data (excluding password)
     res.status(201).json({
       success: true,
-      message: "User registered successfully. Please check your email to verify your account.",
+      message: "User registered successfully. Your account may require admin approval before you can log in.",
       data: {
         id: user.id,
         name: user.name,
@@ -128,14 +113,6 @@ const login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
-      });
-    }
-
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email address before logging in. Check your email for the verification link.",
       });
     }
 
@@ -359,7 +336,9 @@ const requestPasswordReset = async (req, res) => {
     }
 
     // Check if user exists
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({
+      where: { email: email.toLowerCase().trim() },
+    });
     if (!user) {
       // Don't reveal if user exists or not for security
       return res.status(200).json({
@@ -426,7 +405,9 @@ const verifyOTPAndResetPassword = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({
+      where: { email: email.toLowerCase().trim() },
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -479,124 +460,6 @@ const verifyOTPAndResetPassword = async (req, res) => {
   }
 };
 
-const verifyEmail = async (req, res) => {
-  try {
-    const { token } = req.query;
-
-    // Validate token
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: "Verification token is required",
-      });
-    }
-
-    // Find user with matching token and not expired
-    const user = await User.findOne({
-      where: {
-      emailVerificationToken: token,
-        emailVerificationExpires: { [Op.gt]: new Date() },
-      },
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired verification token",
-      });
-    }
-
-    // Check if already verified
-    if (user.isEmailVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is already verified",
-      });
-    }
-
-    // Verify email
-    user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationExpires = null;
-    user.deleteAfter = null; 
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Email verified successfully",
-    });
-  } catch (error) {
-    console.error("Verify email error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error. Please try again later.",
-    });
-  }
-};
-
-const resendVerificationEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    // Validate input
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide your email address",
-      });
-    }
-
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
-      // Don't reveal if user exists or not for security
-      return res.status(200).json({
-        success: true,
-        message: "If the email exists and is not verified, a verification email has been sent",
-      });
-    }
-
-    // Check if already verified
-    if (user.isEmailVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is already verified",
-      });
-    }
-
-    // Generate new verification token
-    const emailVerificationToken = crypto.randomBytes(32).toString("hex");
-    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    // Update user with new token
-    user.emailVerificationToken = emailVerificationToken;
-    user.emailVerificationExpires = emailVerificationExpires;
-    await user.save();
-
-    // Send verification email
-    try {
-      await sendVerificationEmail(user.email, emailVerificationToken);
-    } catch (emailError) {
-      console.error("Email sending error:", emailError);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send verification email. Please try again later.",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Verification email has been sent to your email address",
-    });
-  } catch (error) {
-    console.error("Resend verification email error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error. Please try again later.",
-    });
-  }
-};
-
 module.exports = {
   register,
   login,
@@ -605,7 +468,5 @@ module.exports = {
   updatePassword,
   requestPasswordReset,
   verifyOTPAndResetPassword,
-  verifyEmail,
-  resendVerificationEmail,
 };
 

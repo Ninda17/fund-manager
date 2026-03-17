@@ -29,28 +29,8 @@ const cleanupExpiredOTPs = async () => {
  * Cleanup unverified users marked for deletion
  * Runs daily at 2 AM
  */
-const cleanupUnverifiedUsers = async () => {
-  try {
-    const now = new Date();
-    const _deletedCount = await User.destroy({
-      where: {
-        deleteAfter: {
-          [Op.lt]: now, // deleteAfter < now
-        },
-        isEmailVerified: false,
-        role: {
-          [Op.ne]: 'admin', // Never delete admin accounts
-        },
-      },
-    });
-    
-    // if (deletedCount > 0) {
-    //   console.log(`✅ Cleaned up ${deletedCount} unverified user(s)`);
-    // }
-  } catch (error) {
-    console.error('❌ Error cleaning up unverified users:', error);
-  }
-};
+// Email verification feature removed: do not delete "unverified" users.
+const cleanupUnverifiedUsers = async () => {};
 
 /**
  * Initialize all cleanup jobs
@@ -70,10 +50,7 @@ const initializeCleanupJobs = async () => {
   // console.log('✅ Cleanup job scheduled: Expired OTPs (every hour)');
   
   // Schedule cleanup unverified users daily at 2 AM UTC
-  cron.schedule('0 2 * * *', cleanupUnverifiedUsers, {
-    scheduled: true,
-    timezone: 'UTC',
-  });
+  // (disabled) cleanupUnverifiedUsers
   // console.log('✅ Cleanup job scheduled: Unverified users (daily at 2 AM UTC)');
 };
 

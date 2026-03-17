@@ -2,16 +2,34 @@ const nodemailer = require("nodemailer");
 
 // Create transporter
 const createTransporter = () => {
+  const port = Number.parseInt(process.env.SMTP_PORT, 10) || 587;
+  const secureEnv = (process.env.SMTP_SECURE || "").toString().toLowerCase();
+  const secure =
+    secureEnv === "true" || secureEnv === "1" || (secureEnv === "" && port === 465);
+
+  const rejectUnauthorizedEnv = (process.env.SMTP_TLS_REJECT_UNAUTHORIZED || "true")
+    .toString()
+    .toLowerCase();
+  const rejectUnauthorized = !(
+    rejectUnauthorizedEnv === "false" || rejectUnauthorizedEnv === "0"
+  );
+
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: process.env.SMTP_PORT || 587,
-    secure: false, // true for 465, false for other ports
+    port,
+    secure, // true for 465, false for other ports
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized,
+    },
   });
 };
+
+const getFromAddress = () =>
+  process.env.MAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
 
 // Send OTP email
 const sendOTPEmail = async (email, otp) => {
@@ -19,7 +37,7 @@ const sendOTPEmail = async (email, otp) => {
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: getFromAddress(),
       to: email,
       subject: "Password Reset OTP - Tarayana Fund Tracker",
       html: `
@@ -44,45 +62,6 @@ const sendOTPEmail = async (email, otp) => {
   }
 };
 
-// Send email verification link
-const sendVerificationEmail = async (email, verificationToken) => {
-  try {
-    const transporter = createTransporter();
-    
-    // Get client URL from environment or use default
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-    const verificationLink = `${clientUrl}/verify-email?token=${verificationToken}`;
-
-    const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: email,
-      subject: "Verify Your Email - Tarayana Fund Tracker",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Welcome to Tarayana Fund Tracker!</h2>
-          <p>Thank you for signing up. Please verify your email address to complete your registration.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationLink}" 
-               style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-              Verify Email Address
-            </a>
-          </div>
-          // <p>Or copy and paste this link into your browser:</p>
-          // <p style="color: #666; word-break: break-all; font-size: 12px;">${verificationLink}</p>
-          <p style="color: #666; font-size: 12px; margin-top: 20px;">This link will expire in 24 hours.</p>
-          <p style="color: #666; font-size: 12px;">If you did not create an account, please ignore this email.</p>
-        </div>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error("Error sending verification email:", error);
-    throw new Error("Failed to send verification email");
-  }
-};
-
 // Send utilization warning email (90% threshold)
 const sendUtilizationWarningEmail = async (email, programName, itemType, itemName, itemId, utilization, budget, expense, currency) => {
   try {
@@ -98,7 +77,7 @@ const sendUtilizationWarningEmail = async (email, programName, itemType, itemNam
     const formattedExpense = `${symbol}${expense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: getFromAddress(),
       to: email,
       subject: `⚠️ Utilization Warning: ${itemType} "${itemName}" Reached ${utilization.toFixed(1)}% - Tarayana Fund Tracker`,
       html: `
@@ -147,7 +126,7 @@ const sendUtilizationExceededEmail = async (email, programName, itemType, itemNa
     const formattedOverage = `${symbol}${overage.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: getFromAddress(),
       to: email,
       subject: `🚨 URGENT: Budget Exceeded - ${itemType} "${itemName}" - Tarayana Fund Tracker`,
       html: `
@@ -182,7 +161,6 @@ const sendUtilizationExceededEmail = async (email, programName, itemType, itemNa
 
 module.exports = {
   sendOTPEmail,
-  sendVerificationEmail,
   sendUtilizationWarningEmail,
   sendUtilizationExceededEmail,
 };

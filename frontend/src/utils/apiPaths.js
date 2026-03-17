@@ -11,8 +11,6 @@ export const API_PATHS = {
     UPLOAD_IMAGE: `${API_BASE}/auth/upload-image`,
     FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
     RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
-    VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
-    RESEND_VERIFICATION: `${API_BASE}/auth/resend-verification`,
   },
   // Admin endpoints
   ADMIN: {
